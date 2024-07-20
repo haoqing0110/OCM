@@ -150,8 +150,10 @@ github.com/grpc-ecosystem/grpc-gateway v1.16.0 h1:gmcG1KaJ57LophUzW0Hy8NmPhnMZb4
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 h1:YBftPWNWd4WwGqtY2yeZL2ef8rHAxPBD8KFhJpmcqms=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0/go.mod h1:YN5jB8ie0yfIUg6VvR9Kz84aCaG7AsGZnLjhHbUqwPg=
-github.com/haoqing0110/cluster-inventory-api v0.0.0-20240719031243-29f21db18acf h1:XYei4uMlxkDYJh937a90GHKSOpA1YNivPhQPBTUenHo=
-github.com/haoqing0110/cluster-inventory-api v0.0.0-20240719031243-29f21db18acf/go.mod h1:SYfyxWuayU9Rl8koYl5clkRaIC43TUyqgrw8v2TMJr4=
+github.com/haoqing0110/cluster-inventory-api v0.0.0-20240720091440-e7566eed9b6c h1:yXcAEOHhLOISR9GNco6tgmNk6BsaDWCvESHD4lhozlA=
+github.com/haoqing0110/cluster-inventory-api v0.0.0-20240720091440-e7566eed9b6c/go.mod h1:/aN4e7RWOMHgT4xAjCNkV4YFcpKfpZCeumMIL7S+KNM=
+github.com/haoqing0110/cluster-permission v0.0.0-20240720121237-e23e9ba09731 h1:gNr+tJ4py0TR3NBPkZYIOQgKCsuhvmcNc3DsfE75CHA=
+github.com/haoqing0110/cluster-permission v0.0.0-20240720121237-e23e9ba09731/go.mod h1:F6rG3VtHxEw5DPc9cyZ4mVNrnQdXRG/lOCLhK9NfaiY=
 github.com/huandu/xstrings v1.3.3/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/huandu/xstrings v1.4.0 h1:D17IlohoQq4UcpqD7fDk80P7l+lwAmlFaBHgOipl2FU=
 github.com/huandu/xstrings v1.4.0/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
@@ -467,6 +469,8 @@ open-cluster-management.io/addon-framework v0.10.1-0.20240703130731-ba7fd000a03a
 open-cluster-management.io/addon-framework v0.10.1-0.20240703130731-ba7fd000a03a/go.mod h1:C1VETu/CIQKYfMiVAgNzPEUHjCpL9P1Z/KsGhHa4kl4=
 open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c h1:gYfgkX/U6fv2d3Ly8D6N1GM9zokORupLSgCxx791zZw=
 open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c/go.mod h1:9erZEWEn4bEqh0nIX2wA7f/s3KCuFycQdBrPrRzi0QM=
+open-cluster-management.io/managed-serviceaccount v0.6.0 h1:qIi5T9WQJBuoGqnYGIktXbtqfQoiN2H9XU2P/6lAQiw=
+open-cluster-management.io/managed-serviceaccount v0.6.0/go.mod h1:G4LUTbZiyrB8c0+rqi/xnDmGlsg7Rdr4T7MPLCWhyQI=
 open-cluster-management.io/sdk-go v0.14.1-0.20240628095929-9ffb1b19e566 h1:8dgPiM3byX/rtOrFJIsea2haV4hSFTND65Tlj1EdK18=
 open-cluster-management.io/sdk-go v0.14.1-0.20240628095929-9ffb1b19e566/go.mod h1:xFmN3Db5nN68oLGnstmIRv4us8HJCdXFnBNMXVp0jWY=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.29.0 h1:/U5vjBbQn3RChhv7P11uhYvCSm5G2GaIi5AIGBS6r4c=

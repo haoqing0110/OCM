@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2023.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,14 +21,13 @@ import (
 	"net/http"
 
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/client/clientset/versioned/scheme"
+	v1alpha1 "open-cluster-management.io/cluster-permission/apis/v1alpha1"
+	"open-cluster-management.io/cluster-permission/client/clientset/versioned/scheme"
 )
 
 type ApisV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	AuthTokenRequestsGetter
-	ClusterProfilesGetter
+	ClusterPermissionsGetter
 }
 
 // ApisV1alpha1Client is used to interact with features provided by the apis group.
@@ -36,12 +35,8 @@ type ApisV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ApisV1alpha1Client) AuthTokenRequests(namespace string) AuthTokenRequestInterface {
-	return newAuthTokenRequests(c, namespace)
-}
-
-func (c *ApisV1alpha1Client) ClusterProfiles(namespace string) ClusterProfileInterface {
-	return newClusterProfiles(c, namespace)
+func (c *ApisV1alpha1Client) ClusterPermissions(namespace string) ClusterPermissionInterface {
+	return newClusterPermissions(c, namespace)
 }
 
 // NewForConfig creates a new ApisV1alpha1Client for the given config.

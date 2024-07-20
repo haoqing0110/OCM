@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2023.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-	v1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
+	v1alpha1 "open-cluster-management.io/cluster-permission/apis/v1alpha1"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other
@@ -52,10 +52,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=apis, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("authtokenrequests"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Apis().V1alpha1().AuthTokenRequests().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("clusterprofiles"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Apis().V1alpha1().ClusterProfiles().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("clusterpermissions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Apis().V1alpha1().ClusterPermissions().Informer()}, nil
 
 	}
 

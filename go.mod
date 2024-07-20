@@ -2,7 +2,9 @@ module open-cluster-management.io/ocm
 
 go 1.22.0
 
-replace sigs.k8s.io/cluster-inventory-api => github.com/haoqing0110/cluster-inventory-api v0.0.0-20240719031243-29f21db18acf
+replace sigs.k8s.io/cluster-inventory-api => github.com/haoqing0110/cluster-inventory-api v0.0.0-20240720091440-e7566eed9b6c
+
+replace open-cluster-management.io/cluster-permission => github.com/haoqing0110/cluster-permission v0.0.0-20240720121237-e23e9ba09731
 
 require (
 	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20240329120647-e6a74efbacbf
@@ -39,6 +41,8 @@ require (
 	k8s.io/utils v0.0.0-20240310230437-4693a0247e57
 	open-cluster-management.io/addon-framework v0.10.1-0.20240703130731-ba7fd000a03a
 	open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c
+	open-cluster-management.io/cluster-permission v0.0.0-00010101000000-000000000000
+	open-cluster-management.io/managed-serviceaccount v0.6.0
 	open-cluster-management.io/sdk-go v0.14.1-0.20240628095929-9ffb1b19e566
 	sigs.k8s.io/cluster-inventory-api v0.0.0-20240603014719-4815f6b441c9
 	sigs.k8s.io/controller-runtime v0.18.4

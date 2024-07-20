@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2021.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,33 +21,28 @@ import (
 	"net/http"
 
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
-	"sigs.k8s.io/cluster-inventory-api/client/clientset/versioned/scheme"
+	v1alpha1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1alpha1"
+	"open-cluster-management.io/managed-serviceaccount/pkg/generated/clientset/versioned/scheme"
 )
 
-type ApisV1alpha1Interface interface {
+type AuthenticationV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	AuthTokenRequestsGetter
-	ClusterProfilesGetter
+	ManagedServiceAccountsGetter
 }
 
-// ApisV1alpha1Client is used to interact with features provided by the apis group.
-type ApisV1alpha1Client struct {
+// AuthenticationV1alpha1Client is used to interact with features provided by the authentication.open-cluster-management.io group.
+type AuthenticationV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ApisV1alpha1Client) AuthTokenRequests(namespace string) AuthTokenRequestInterface {
-	return newAuthTokenRequests(c, namespace)
+func (c *AuthenticationV1alpha1Client) ManagedServiceAccounts(namespace string) ManagedServiceAccountInterface {
+	return newManagedServiceAccounts(c, namespace)
 }
 
-func (c *ApisV1alpha1Client) ClusterProfiles(namespace string) ClusterProfileInterface {
-	return newClusterProfiles(c, namespace)
-}
-
-// NewForConfig creates a new ApisV1alpha1Client for the given config.
+// NewForConfig creates a new AuthenticationV1alpha1Client for the given config.
 // NewForConfig is equivalent to NewForConfigAndClient(c, httpClient),
 // where httpClient was generated with rest.HTTPClientFor(c).
-func NewForConfig(c *rest.Config) (*ApisV1alpha1Client, error) {
+func NewForConfig(c *rest.Config) (*AuthenticationV1alpha1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -59,9 +54,9 @@ func NewForConfig(c *rest.Config) (*ApisV1alpha1Client, error) {
 	return NewForConfigAndClient(&config, httpClient)
 }
 
-// NewForConfigAndClient creates a new ApisV1alpha1Client for the given config and http client.
+// NewForConfigAndClient creates a new AuthenticationV1alpha1Client for the given config and http client.
 // Note the http client provided takes precedence over the configured transport values.
-func NewForConfigAndClient(c *rest.Config, h *http.Client) (*ApisV1alpha1Client, error) {
+func NewForConfigAndClient(c *rest.Config, h *http.Client) (*AuthenticationV1alpha1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -70,12 +65,12 @@ func NewForConfigAndClient(c *rest.Config, h *http.Client) (*ApisV1alpha1Client,
 	if err != nil {
 		return nil, err
 	}
-	return &ApisV1alpha1Client{client}, nil
+	return &AuthenticationV1alpha1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new ApisV1alpha1Client for the given config and
+// NewForConfigOrDie creates a new AuthenticationV1alpha1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *ApisV1alpha1Client {
+func NewForConfigOrDie(c *rest.Config) *AuthenticationV1alpha1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -83,9 +78,9 @@ func NewForConfigOrDie(c *rest.Config) *ApisV1alpha1Client {
 	return client
 }
 
-// New creates a new ApisV1alpha1Client for the given RESTClient.
-func New(c rest.Interface) *ApisV1alpha1Client {
-	return &ApisV1alpha1Client{c}
+// New creates a new AuthenticationV1alpha1Client for the given RESTClient.
+func New(c rest.Interface) *AuthenticationV1alpha1Client {
+	return &AuthenticationV1alpha1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -103,7 +98,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *ApisV1alpha1Client) RESTClient() rest.Interface {
+func (c *AuthenticationV1alpha1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

@@ -17,6 +17,14 @@ limitations under the License.
 
 package v1alpha1
 
+// AuthTokenRequestListerExpansion allows custom methods to be added to
+// AuthTokenRequestLister.
+type AuthTokenRequestListerExpansion interface{}
+
+// AuthTokenRequestNamespaceListerExpansion allows custom methods to be added to
+// AuthTokenRequestNamespaceLister.
+type AuthTokenRequestNamespaceListerExpansion interface{}
+
 // ClusterProfileListerExpansion allows custom methods to be added to
 // ClusterProfileLister.
 type ClusterProfileListerExpansion interface{}

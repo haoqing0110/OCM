@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2023.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,15 +18,13 @@ limitations under the License.
 package v1alpha1
 
 import (
-	internalinterfaces "sigs.k8s.io/cluster-inventory-api/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "open-cluster-management.io/cluster-permission/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// AuthTokenRequests returns a AuthTokenRequestInformer.
-	AuthTokenRequests() AuthTokenRequestInformer
-	// ClusterProfiles returns a ClusterProfileInformer.
-	ClusterProfiles() ClusterProfileInformer
+	// ClusterPermissions returns a ClusterPermissionInformer.
+	ClusterPermissions() ClusterPermissionInformer
 }
 
 type version struct {
@@ -40,12 +38,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// AuthTokenRequests returns a AuthTokenRequestInformer.
-func (v *version) AuthTokenRequests() AuthTokenRequestInformer {
-	return &authTokenRequestInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// ClusterProfiles returns a ClusterProfileInformer.
-func (v *version) ClusterProfiles() ClusterProfileInformer {
-	return &clusterProfileInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// ClusterPermissions returns a ClusterPermissionInformer.
+func (v *version) ClusterPermissions() ClusterPermissionInformer {
+	return &clusterPermissionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

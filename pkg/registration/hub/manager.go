@@ -29,10 +29,14 @@ import (
 	cpclientset "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned"
 	cpinformerv1alpha1 "sigs.k8s.io/cluster-inventory-api/client/informers/externalversions"
 
+	permissionclientset "open-cluster-management.io/cluster-permission/client/clientset/versioned"
+	permissioninformer "open-cluster-management.io/cluster-permission/client/informers/externalversions"
+	msaclientset "open-cluster-management.io/managed-serviceaccount/pkg/generated/clientset/versioned"
 	commonhelpers "open-cluster-management.io/ocm/pkg/common/helpers"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/registration/helpers"
 	"open-cluster-management.io/ocm/pkg/registration/hub/addon"
+	"open-cluster-management.io/ocm/pkg/registration/hub/authtokenrequest"
 	"open-cluster-management.io/ocm/pkg/registration/hub/clusterprofile"
 	"open-cluster-management.io/ocm/pkg/registration/hub/clusterrole"
 	"open-cluster-management.io/ocm/pkg/registration/hub/csr"
@@ -100,6 +104,16 @@ func (m *HubManagerOptions) RunControllerManager(ctx context.Context, controller
 		return err
 	}
 
+	permissionClient, err := permissionclientset.NewForConfig(controllerContext.KubeConfig)
+	if err != nil {
+		return err
+	}
+
+	msaClient, err := msaclientset.NewForConfig(controllerContext.KubeConfig)
+	if err != nil {
+		return err
+	}
+
 	clusterInformers := clusterv1informers.NewSharedInformerFactory(clusterClient, 30*time.Minute)
 	clusterProfileInformers := cpinformerv1alpha1.NewSharedInformerFactory(clusterProfileClient, 30*time.Minute)
 	workInformers := workv1informers.NewSharedInformerFactory(workClient, 30*time.Minute)
@@ -122,11 +136,12 @@ func (m *HubManagerOptions) RunControllerManager(ctx context.Context, controller
 			listOptions.LabelSelector = metav1.FormatLabelSelector(selector)
 		}))
 	addOnInformers := addoninformers.NewSharedInformerFactory(addOnClient, 30*time.Minute)
+	permissionInformers := permissioninformer.NewSharedInformerFactory(permissionClient, 30*time.Minute)
 
 	return m.RunControllerManagerWithInformers(
 		ctx, controllerContext,
-		kubeClient, metadataClient, clusterClient, clusterProfileClient, addOnClient,
-		kubeInfomers, clusterInformers, clusterProfileInformers, workInformers, addOnInformers,
+		kubeClient, metadataClient, clusterClient, clusterProfileClient, addOnClient, permissionClient, msaClient,
+		kubeInfomers, clusterInformers, clusterProfileInformers, workInformers, addOnInformers, permissionInformers,
 	)
 }
 
@@ -138,11 +153,14 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	clusterClient clusterv1client.Interface,
 	clusterProfileClient cpclientset.Interface,
 	addOnClient addonclient.Interface,
+	permissionClient permissionclientset.Interface,
+	msaClient msaclientset.Interface,
 	kubeInformers kubeinformers.SharedInformerFactory,
 	clusterInformers clusterv1informers.SharedInformerFactory,
 	clusterProfileInformers cpinformerv1alpha1.SharedInformerFactory,
 	workInformers workv1informers.SharedInformerFactory,
 	addOnInformers addoninformers.SharedInformerFactory,
+	permissionInformer permissioninformer.SharedInformerFactory,
 ) error {
 	logger := klog.FromContext(ctx)
 	managedClusterController := managedcluster.NewManagedClusterController(
@@ -275,6 +293,17 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 		clusterProfileInformers.Apis().V1alpha1().ClusterProfiles(),
 		controllerContext.EventRecorder,
 	)
+	authtokenrequestController := authtokenrequest.NewAuthTokenRequestController(
+		kubeClient,
+		clusterInformers.Cluster().V1().ManagedClusters(),
+		clusterProfileClient,
+		clusterProfileInformers.Apis().V1alpha1().ClusterProfiles(),
+		clusterProfileInformers.Apis().V1alpha1().AuthTokenRequests(),
+		permissionClient,
+		permissionInformer.Apis().V1alpha1().ClusterPermissions(),
+		msaClient,
+		controllerContext.EventRecorder,
+	)
 
 	gcController := gc.NewGCController(
 		kubeInformers.Rbac().V1().ClusterRoles().Lister(),
@@ -295,6 +324,7 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	go kubeInformers.Start(ctx.Done())
 	go addOnInformers.Start(ctx.Done())
 	go clusterProfileInformers.Start(ctx.Done())
+	go permissionInformer.Start(ctx.Done())
 
 	go managedClusterController.Run(ctx, 1)
 	go taintController.Run(ctx, 1)
@@ -312,6 +342,7 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	}
 	// TODO: feature gates
 	go clusterProfileController.Run(ctx, 1)
+	go authtokenrequestController.Run(ctx, 1)
 
 	go gcController.Run(ctx, 1)
 
