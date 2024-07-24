@@ -150,8 +150,8 @@ github.com/grpc-ecosystem/grpc-gateway v1.16.0 h1:gmcG1KaJ57LophUzW0Hy8NmPhnMZb4
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0 h1:YBftPWNWd4WwGqtY2yeZL2ef8rHAxPBD8KFhJpmcqms=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0/go.mod h1:YN5jB8ie0yfIUg6VvR9Kz84aCaG7AsGZnLjhHbUqwPg=
-github.com/haoqing0110/cluster-inventory-api v0.0.0-20240720091440-e7566eed9b6c h1:yXcAEOHhLOISR9GNco6tgmNk6BsaDWCvESHD4lhozlA=
-github.com/haoqing0110/cluster-inventory-api v0.0.0-20240720091440-e7566eed9b6c/go.mod h1:/aN4e7RWOMHgT4xAjCNkV4YFcpKfpZCeumMIL7S+KNM=
+github.com/haoqing0110/cluster-inventory-api v0.0.0-20240725101517-c201f83487ac h1:7VWMy647cRiL/PeRxt9jGZXUHjhtJ7pLZ340voj75/g=
+github.com/haoqing0110/cluster-inventory-api v0.0.0-20240725101517-c201f83487ac/go.mod h1:/aN4e7RWOMHgT4xAjCNkV4YFcpKfpZCeumMIL7S+KNM=
 github.com/haoqing0110/cluster-permission v0.0.0-20240720121237-e23e9ba09731 h1:gNr+tJ4py0TR3NBPkZYIOQgKCsuhvmcNc3DsfE75CHA=
 github.com/haoqing0110/cluster-permission v0.0.0-20240720121237-e23e9ba09731/go.mod h1:F6rG3VtHxEw5DPc9cyZ4mVNrnQdXRG/lOCLhK9NfaiY=
 github.com/huandu/xstrings v1.3.3/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=

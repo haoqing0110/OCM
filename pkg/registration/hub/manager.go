@@ -137,11 +137,24 @@ func (m *HubManagerOptions) RunControllerManager(ctx context.Context, controller
 		}))
 	addOnInformers := addoninformers.NewSharedInformerFactory(addOnClient, 30*time.Minute)
 	permissionInformers := permissioninformer.NewSharedInformerFactory(permissionClient, 30*time.Minute)
+	// to reduce cache size if there are larges number of secrets
+	secretInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, 30*time.Minute, kubeinformers.WithTweakListOptions(
+		func(listOptions *metav1.ListOptions) {
+			selector := &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "authentication.open-cluster-management.io/is-managed-serviceaccount",
+						Operator: metav1.LabelSelectorOpExists,
+					},
+				},
+			}
+			listOptions.LabelSelector = metav1.FormatLabelSelector(selector)
+		}))
 
 	return m.RunControllerManagerWithInformers(
 		ctx, controllerContext,
 		kubeClient, metadataClient, clusterClient, clusterProfileClient, addOnClient, permissionClient, msaClient,
-		kubeInfomers, clusterInformers, clusterProfileInformers, workInformers, addOnInformers, permissionInformers,
+		kubeInfomers, secretInformers, clusterInformers, clusterProfileInformers, workInformers, addOnInformers, permissionInformers,
 	)
 }
 
@@ -156,6 +169,7 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	permissionClient permissionclientset.Interface,
 	msaClient msaclientset.Interface,
 	kubeInformers kubeinformers.SharedInformerFactory,
+	secretInformers kubeinformers.SharedInformerFactory,
 	clusterInformers clusterv1informers.SharedInformerFactory,
 	clusterProfileInformers cpinformerv1alpha1.SharedInformerFactory,
 	workInformers workv1informers.SharedInformerFactory,
@@ -295,7 +309,7 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	)
 	authtokenrequestController := authtokenrequest.NewAuthTokenRequestController(
 		kubeClient,
-		clusterInformers.Cluster().V1().ManagedClusters(),
+		secretInformers.Core().V1().Secrets(),
 		clusterProfileClient,
 		clusterProfileInformers.Apis().V1alpha1().ClusterProfiles(),
 		clusterProfileInformers.Apis().V1alpha1().AuthTokenRequests(),
@@ -322,6 +336,7 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	go clusterInformers.Start(ctx.Done())
 	go workInformers.Start(ctx.Done())
 	go kubeInformers.Start(ctx.Done())
+	go secretInformers.Start(ctx.Done())
 	go addOnInformers.Start(ctx.Done())
 	go clusterProfileInformers.Start(ctx.Done())
 	go permissionInformer.Start(ctx.Done())

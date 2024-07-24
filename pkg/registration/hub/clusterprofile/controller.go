@@ -69,7 +69,7 @@ func (c *clusterProfileController) sync(ctx context.Context, syncCtx factory.Syn
 	}
 
 	if !managedCluster.DeletionTimestamp.IsZero() {
-		// the cleanup job is moved to gc controller
+		// TODO: remove clusterprofile
 		return nil
 	}
 
@@ -127,6 +127,7 @@ func (c *clusterProfileController) sync(ctx context.Context, syncCtx factory.Syn
 	for k, v := range managedCluster.GetLabels() {
 		cpProperties = append(cpProperties, cpv1alpha1.Property{Name: k, Value: v})
 	}
+	cpProperties = append(cpProperties, cpv1alpha1.Property{Name: "url", Value: managedCluster.Spec.ManagedClusterClientConfigs[0].URL})
 	newClusterProfile.Status.Properties = cpProperties
 
 	// sync status.conditions

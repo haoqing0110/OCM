@@ -2,7 +2,7 @@ module open-cluster-management.io/ocm
 
 go 1.22.0
 
-replace sigs.k8s.io/cluster-inventory-api => github.com/haoqing0110/cluster-inventory-api v0.0.0-20240720091440-e7566eed9b6c
+replace sigs.k8s.io/cluster-inventory-api => github.com/haoqing0110/cluster-inventory-api v0.0.0-20240725101517-c201f83487ac
 
 replace open-cluster-management.io/cluster-permission => github.com/haoqing0110/cluster-permission v0.0.0-20240720121237-e23e9ba09731
 
