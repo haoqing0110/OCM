@@ -220,7 +220,7 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 	newClusterProfile := clusterProfile.DeepCopy()
 	newClusterProfile.Status.Credentials = []cpv1alpha1.Credential{
 		{
-			Name: kubeconfSecret.Name,
+			Consumer: "kueue-admin",
 			AccessRef: cpv1alpha1.AccessRef{
 				Kind:      "Secret",
 				Name:      kubeconfSecret.Name,

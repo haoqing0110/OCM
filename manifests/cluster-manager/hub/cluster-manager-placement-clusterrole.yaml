@@ -49,4 +49,22 @@ rules:
 - apiGroups: ["config.openshift.io"]
   resources: ["infrastructures"]
   verbs: ["get"]
-
+# Allow hub to manage clusterprofile
+- apiGroups: ["multicluster.x-k8s.io"]
+  resources: ["clusterprofiles"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Allow hub to manage multikueueconfig
+- apiGroups: ["kueue.x-k8s.io"]
+  resources: ["multikueueconfigs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Allow hub to manage multikueueclusters
+- apiGroups: ["kueue.x-k8s.io"]
+  resources: ["multikueueclusters"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Allow hub to manage multikueueclusters
+- apiGroups: ["kueue.x-k8s.io"]
+  resources: ["admissionchecks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["kueue.x-k8s.io"]
+  resources: ["admissionchecks/status"]
+  verbs: ["update", "patch"]

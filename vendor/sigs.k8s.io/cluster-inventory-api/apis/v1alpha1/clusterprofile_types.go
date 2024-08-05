@@ -144,7 +144,7 @@ type AccessRef struct {
 
 type Credential struct {
 	// +required
-	Name string `json:"name"`
+	Consumer string `json:"consumer"`
 
 	// RequestRef points to a specific AuthTokenRequest object.
 	// +required
