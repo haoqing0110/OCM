@@ -36,11 +36,11 @@ import (
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/registration/helpers"
 	"open-cluster-management.io/ocm/pkg/registration/hub/addon"
-	"open-cluster-management.io/ocm/pkg/registration/hub/authtokenrequest"
 	"open-cluster-management.io/ocm/pkg/registration/hub/clusterprofile"
 	"open-cluster-management.io/ocm/pkg/registration/hub/clusterrole"
 	"open-cluster-management.io/ocm/pkg/registration/hub/csr"
 	"open-cluster-management.io/ocm/pkg/registration/hub/gc"
+	"open-cluster-management.io/ocm/pkg/registration/hub/kueuesecretcopy"
 	"open-cluster-management.io/ocm/pkg/registration/hub/lease"
 	"open-cluster-management.io/ocm/pkg/registration/hub/managedcluster"
 	"open-cluster-management.io/ocm/pkg/registration/hub/managedclusterset"
@@ -307,15 +307,11 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 		clusterProfileInformers.Apis().V1alpha1().ClusterProfiles(),
 		controllerContext.EventRecorder,
 	)
-	authtokenrequestController := authtokenrequest.NewAuthTokenRequestController(
+	kueuesecretcopyController := kueuesecretcopy.NewKueueSecretCopyController(
 		kubeClient,
 		secretInformers.Core().V1().Secrets(),
 		clusterProfileClient,
 		clusterProfileInformers.Apis().V1alpha1().ClusterProfiles(),
-		clusterProfileInformers.Apis().V1alpha1().AuthTokenRequests(),
-		permissionClient,
-		permissionInformer.Apis().V1alpha1().ClusterPermissions(),
-		msaClient,
 		controllerContext.EventRecorder,
 	)
 
@@ -357,7 +353,7 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	}
 	// TODO: feature gates
 	go clusterProfileController.Run(ctx, 1)
-	go authtokenrequestController.Run(ctx, 1)
+	go kueuesecretcopyController.Run(ctx, 1)
 
 	go gcController.Run(ctx, 1)
 

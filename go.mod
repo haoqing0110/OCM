@@ -46,7 +46,7 @@ require (
 	open-cluster-management.io/cluster-permission v0.0.0-00010101000000-000000000000
 	open-cluster-management.io/managed-serviceaccount v0.6.0
 	open-cluster-management.io/sdk-go v0.14.1-0.20240628095929-9ffb1b19e566
-	sigs.k8s.io/cluster-inventory-api v0.0.0-20240603014719-4815f6b441c9
+	sigs.k8s.io/cluster-inventory-api v0.0.0-20240730014211-ef0154379848
 	sigs.k8s.io/controller-runtime v0.18.4
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96
 	sigs.k8s.io/kueue v0.7.1

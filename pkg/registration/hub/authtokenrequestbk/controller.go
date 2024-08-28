@@ -1,4 +1,4 @@
-package authtokenrequest
+package authtokenrequestbk
 
 import (
 	"context"
@@ -52,7 +52,7 @@ type authTokenRequestController struct {
 }
 
 // NewAuthTokenRequestController creates a new managed cluster controller
-func NewAuthTokenRequestController(
+func NewAuthTokenRequestControllerbk(
 	kubeClient kubernetes.Interface,
 	secretInformer informerv1.SecretInformer,
 	clusterProfileClient cpclientset.Interface,
