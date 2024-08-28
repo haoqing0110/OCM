@@ -1,4 +1,4 @@
-package authtokenrequest
+package authtokenrequestbk
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	informerv1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	permissionv1alpha1 "open-cluster-management.io/cluster-permission/apis/v1alpha1"
@@ -23,7 +24,7 @@ import (
 	permissioninformerv1alpha1 "open-cluster-management.io/cluster-permission/client/informers/externalversions/apis/v1alpha1"
 	msav1beta1 "open-cluster-management.io/managed-serviceaccount/apis/authentication/v1beta1"
 	msaclientset "open-cluster-management.io/managed-serviceaccount/pkg/generated/clientset/versioned"
-
+	"open-cluster-management.io/ocm/pkg/common/queue"
 	"open-cluster-management.io/sdk-go/pkg/patcher"
 	cpv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 	cpclientset "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned"
@@ -39,19 +40,19 @@ const (
 
 // authTokenRequestController reconciles instances of AuthTokenRequest on the hub.
 type authTokenRequestController struct {
-	kubeClient           kubernetes.Interface
-	msaClient            msaclientset.Interface
-	clusterProfileLister cplisterv1alpha1.ClusterProfileLister
-	// authTokenRequestLister  cplisterv1alpha1.AuthTokenRequestLister
+	kubeClient              kubernetes.Interface
+	msaClient               msaclientset.Interface
+	clusterProfileLister    cplisterv1alpha1.ClusterProfileLister
+	authTokenRequestLister  cplisterv1alpha1.AuthTokenRequestLister
 	clusterpermissionClient permissionclientset.Interface
 	//permissionLister        permissionlisterv1alpha1.ClusterPermissionLister
-	clusterProfilePatcher patcher.Patcher[*cpv1alpha1.ClusterProfile, cpv1alpha1.ClusterProfileSpec, cpv1alpha1.ClusterProfileStatus]
-	// authTokenRequestPatcher patcher.Patcher[*cpv1alpha1.AuthTokenRequest, cpv1alpha1.AuthTokenRequestSpec, cpv1alpha1.AuthTokenRequestStatus]
-	eventRecorder events.Recorder
+	clusterProfilePatcher   patcher.Patcher[*cpv1alpha1.ClusterProfile, cpv1alpha1.ClusterProfileSpec, cpv1alpha1.ClusterProfileStatus]
+	authTokenRequestPatcher patcher.Patcher[*cpv1alpha1.AuthTokenRequest, cpv1alpha1.AuthTokenRequestSpec, cpv1alpha1.AuthTokenRequestStatus]
+	eventRecorder           events.Recorder
 }
 
 // NewAuthTokenRequestController creates a new managed cluster controller
-func NewAuthTokenRequestController(
+func NewAuthTokenRequestControllerbk(
 	kubeClient kubernetes.Interface,
 	secretInformer informerv1.SecretInformer,
 	clusterProfileClient cpclientset.Interface,
@@ -62,28 +63,29 @@ func NewAuthTokenRequestController(
 	msaClient msaclientset.Interface,
 	recorder events.Recorder) factory.Controller {
 	c := &authTokenRequestController{
-		kubeClient:           kubeClient,
-		msaClient:            msaClient,
-		clusterProfileLister: clusterProfileInformer.Lister(),
-		// authTokenRequestLister:  authTokenRequestInformer.Lister(),
+		kubeClient:              kubeClient,
+		msaClient:               msaClient,
+		clusterProfileLister:    clusterProfileInformer.Lister(),
+		authTokenRequestLister:  authTokenRequestInformer.Lister(),
 		clusterpermissionClient: clusterpermissionClient,
 		//permissionLister:       permissionInformer.Lister(),
 		clusterProfilePatcher: patcher.NewPatcher[
 			*cpv1alpha1.ClusterProfile, cpv1alpha1.ClusterProfileSpec, cpv1alpha1.ClusterProfileStatus](
 			clusterProfileClient.ApisV1alpha1().ClusterProfiles("open-cluster-management")),
-		//authTokenRequestPatcher: patcher.NewPatcher[
-		//	*cpv1alpha1.AuthTokenRequest, cpv1alpha1.AuthTokenRequestSpec, cpv1alpha1.AuthTokenRequestStatus](
-		//	clusterProfileClient.ApisV1alpha1().AuthTokenRequests("kueue-system")),
+		authTokenRequestPatcher: patcher.NewPatcher[
+			*cpv1alpha1.AuthTokenRequest, cpv1alpha1.AuthTokenRequestSpec, cpv1alpha1.AuthTokenRequestStatus](
+			clusterProfileClient.ApisV1alpha1().AuthTokenRequests("kueue-system")),
 		eventRecorder: recorder.WithComponentSuffix("cluster-profile-controller"),
 	}
 
 	return factory.New().
+		WithInformersQueueKeysFunc(queue.QueueKeyByMetaNamespaceName, authTokenRequestInformer.Informer()).
 		WithInformersQueueKeysFunc(func(obj runtime.Object) []string {
 			accessor, _ := meta.Accessor(obj)
-			if accessor.GetLabels()["authentication.open-cluster-management.io/is-managed-serviceaccount"] == "true" {
-				return []string{fmt.Sprintf("%s/%s", accessor.GetNamespace(), accessor.GetName())}
-			}
-			return []string{}
+			msa, _ := c.msaClient.AuthenticationV1alpha1().ManagedServiceAccounts(accessor.GetNamespace()).Get(context.Background(), accessor.GetName(), metav1.GetOptions{})
+			namespace := msa.GetLabels()[labelAuthTokenRequestNamespace]
+			name := msa.GetLabels()[labelAuthTokenRequestName]
+			return []string{fmt.Sprintf("%s/%s", namespace, name)}
 		}, secretInformer.Informer()).
 		WithSync(c.sync).
 		ToController("AuthTokenRequestController", recorder)
@@ -94,9 +96,8 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 	logger := klog.FromContext(ctx)
 	logger.V(4).Info("Reconciling AuthTokenRequester", key)
 
-	// requestNamespace, requestName, err := cache.SplitMetaNamespaceKey(key)
-	// authTokenRequest, err := c.authTokenRequestLister.AuthTokenRequests(requestNamespace).Get(requestName)
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	requestNamespace, requestName, err := cache.SplitMetaNamespaceKey(key)
+	authTokenRequest, err := c.authTokenRequestLister.AuthTokenRequests(requestNamespace).Get(requestName)
 	if errors.IsNotFound(err) {
 		// Spoke cluster not found, could have been deleted, do nothing.
 		return nil
@@ -105,14 +106,14 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 		return err
 	}
 
-	//clusterProfileName := authTokenRequest.Spec.TargetClusterProfile.Name
-	//clusterProfileNamespace := authTokenRequest.Spec.TargetClusterProfile.Namespace
-	// generateNamespace := clusterProfileName
-	// generateSAName := authTokenRequest.Spec.ServiceAccountName
+	clusterProfileName := authTokenRequest.Spec.TargetClusterProfile.Name
+	clusterProfileNamespace := authTokenRequest.Spec.TargetClusterProfile.Namespace
+	generateNamespace := clusterProfileName
+	generateSAName := authTokenRequest.Spec.ServiceAccountName
 
 	// if clusterProfileNamespace != "open-cluster-management"
 
-	/*if !authTokenRequest.DeletionTimestamp.IsZero() {
+	if !authTokenRequest.DeletionTimestamp.IsZero() {
 		// delete clusterpermission and msa
 		for _, generateClusterRole := range authTokenRequest.Spec.ClusterRoles {
 			err = c.clusterpermissionClient.ApisV1alpha1().ClusterPermissions(generateNamespace).Delete(ctx, generateClusterRole.Name, metav1.DeleteOptions{})
@@ -138,10 +139,10 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 	_, err = c.authTokenRequestPatcher.AddFinalizer(ctx, authTokenRequest, authTokenRequestFinalizer)
 	if err != nil {
 		return err
-	}*/
+	}
 
 	// create or update ClusterPermission
-	/* for _, generateClusterRole := range authTokenRequest.Spec.ClusterRoles {
+	for _, generateClusterRole := range authTokenRequest.Spec.ClusterRoles {
 		cluserPermission := &permissionv1alpha1.ClusterPermission{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      generateClusterRole.Name,
@@ -169,11 +170,11 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 		if err != nil {
 			return err
 		}
-	} */
+	}
 	// TODO: authTokenRequest.Spec.Roles
 
 	// create and get ManagedServiceAccount
-	/* managedServiceAccount := &msav1beta1.ManagedServiceAccount{
+	managedServiceAccount := &msav1beta1.ManagedServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      generateSAName,
 			Namespace: generateNamespace,
@@ -192,19 +193,13 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 	managedServiceAccount, err = c.createManagedServiceAccount(ctx, managedServiceAccount)
 	if err != nil {
 		return err
-	}*/
+	}
 
 	//	get cluster url
-	clusterProfileNamespace := "open-cluster-management"
-	clusterProfileName := namespace
-	requestNamespace := "kueue-system"
 	clusterProfile, err := c.clusterProfileLister.ClusterProfiles(clusterProfileNamespace).Get(clusterProfileName)
 	if err != nil {
 		return err
 	}
-
-	// get managedServiceAccount
-	managedServiceAccount, err := c.msaClient.AuthenticationV1beta1().ManagedServiceAccounts(namespace).Get(ctx, name, metav1.GetOptions{})
 
 	// generate kubeconf secret
 	kubeconfSecret, err := c.generateKueConfigSecret(ctx, managedServiceAccount, clusterProfile, requestNamespace)
@@ -238,15 +233,15 @@ func (c *authTokenRequestController) sync(ctx context.Context, syncCtx factory.S
 		return err
 	}
 
-	//	// sync status to authtokenrequest
-	//	newAuthTokenRequest := authTokenRequest.DeepCopy()
-	//	newAuthTokenRequest.Status.TokenResponse = cpv1alpha1.ConfigMapRef{
-	//		APIGroup: "core",
-	//		Kind:     "Secret",
-	//		Name:     kubeconfSecret.Name,
-	//	}
-	//	//TODO: set conditions
-	//	_, err = c.authTokenRequestPatcher.PatchStatus(ctx, newAuthTokenRequest, newAuthTokenRequest.Status, authTokenRequest.Status)
+	// sync status to authtokenrequest
+	newAuthTokenRequest := authTokenRequest.DeepCopy()
+	newAuthTokenRequest.Status.TokenResponse = cpv1alpha1.ConfigMapRef{
+		APIGroup: "core",
+		Kind:     "Secret",
+		Name:     kubeconfSecret.Name,
+	}
+	//TODO: set conditions
+	_, err = c.authTokenRequestPatcher.PatchStatus(ctx, newAuthTokenRequest, newAuthTokenRequest.Status, authTokenRequest.Status)
 	return err
 }
 
