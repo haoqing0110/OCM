@@ -8,6 +8,7 @@ import (
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"k8s.io/apiserver/pkg/server/mux"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
 
 	clusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned"
@@ -20,6 +21,7 @@ import (
 	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
 	"open-cluster-management.io/ocm/pkg/placement/controllers/scheduling"
 	"open-cluster-management.io/ocm/pkg/placement/debugger"
+	"open-cluster-management.io/ocm/pkg/placement/index"
 	cpclientset "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned"
 	cpinformerv1alpha1 "sigs.k8s.io/cluster-inventory-api/client/informers/externalversions"
 )
@@ -64,6 +66,15 @@ func RunControllerManagerWithInformers(
 	kueueInformers kueueinformers.SharedInformerFactory,
 ) error {
 	recorder, err := helpers.NewEventRecorder(ctx, clusterscheme.Scheme, kubeClient, "placement-controller")
+	if err != nil {
+		return err
+	}
+
+	// admissionChecksController
+	err = kueueInformers.Kueue().V1beta1().AdmissionChecks().Informer().AddIndexers(
+		cache.Indexers{
+			index.AdmissionCheckByPlacement: index.IndexAdmissionCheckByPlacement,
+		})
 	if err != nil {
 		return err
 	}

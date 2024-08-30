@@ -20,6 +20,7 @@ import (
 
 	"open-cluster-management.io/ocm/pkg/common/helpers"
 	"open-cluster-management.io/ocm/pkg/common/queue"
+	"open-cluster-management.io/ocm/pkg/placement/index"
 	cpinformerv1alpha1 "sigs.k8s.io/cluster-inventory-api/client/informers/externalversions/apis/v1alpha1"
 	cplisterv1alpha1 "sigs.k8s.io/cluster-inventory-api/client/listers/apis/v1alpha1"
 	kueuev1alpha1 "sigs.k8s.io/kueue/apis/kueue/v1alpha1"
@@ -79,6 +80,10 @@ func NewAdmissionCheckController(
 				return admissionCheck.Spec.ControllerName == "open-cluster-management.io/placement"
 			},
 			admissionCheckInformer.Informer()).
+		WithInformersQueueKeysFunc(
+			index.AdmissionCheckByPlacementQueueKey(admissionCheckInformer), placementInformer.Informer()).
+		WithInformersQueueKeysFunc(
+			index.AdmissionCheckByPlacementDecisionQueueKey(admissionCheckInformer), placementDecisionInformer.Informer()).
 		WithSync(c.sync).
 		ToController(admissioncheckControllerName, recorder)
 }
@@ -86,7 +91,7 @@ func NewAdmissionCheckController(
 func (c *admissioncheckController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	key := syncCtx.QueueKey()
 	logger := klog.FromContext(ctx)
-	logger.V(4).Info("Reconciling AdmissionCheck", key)
+	logger.Info("Reconciling AdmissionCheck", key)
 
 	admissionCheck, err := c.admissioncheckLister.Get(key)
 	if errors.IsNotFound(err) {
@@ -122,7 +127,6 @@ func (c *admissioncheckController) sync(ctx context.Context, syncCtx factory.Syn
 	}
 
 	for cn := range clusters {
-		klog.Warningf("cluster %s", c)
 		cp, err := c.clusterProfileLister.ClusterProfiles(clusterProfileNamespace).Get(cn)
 		if err != nil {
 			return err
