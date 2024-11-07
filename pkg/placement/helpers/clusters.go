@@ -1,6 +1,8 @@
 package helpers
 
 import (
+	"github.com/google/cel-go/cel"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -11,6 +13,7 @@ import (
 type ClusterSelector struct {
 	labelSelector labels.Selector
 	claimSelector labels.Selector
+	celSelector   clusterapiv1beta1.ClusterCelSelector
 }
 
 func NewClusterSelector(selector clusterapiv1beta1.ClusterSelector) (*ClusterSelector, error) {
@@ -27,6 +30,7 @@ func NewClusterSelector(selector clusterapiv1beta1.ClusterSelector) (*ClusterSel
 	return &ClusterSelector{
 		labelSelector: labelSelector,
 		claimSelector: claimSelector,
+		celSelector:   selector.CelSelector,
 	}, nil
 }
 
@@ -62,6 +66,49 @@ func convertClaimSelector(clusterClaimSelector *clusterapiv1beta1.ClusterClaimSe
 	}
 
 	return selector, nil
+}
+
+func (c *ClusterSelector) CELMatches(labels, claims map[string]string) (bool, error) {
+	// Create a CEL environment with a variable for the resource object
+	env, err := cel.NewEnv(
+		cel.Variable("labels", cel.MapType(cel.StringType, cel.StringType)),
+		cel.Variable("claims", cel.MapType(cel.StringType, cel.StringType)),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	convertedLabels := make(map[string]interface{})
+	convertedClaims := make(map[string]interface{})
+	for key, value := range labels {
+		convertedLabels[key] = value
+	}
+	for key, value := range claims {
+		convertedClaims[key] = value
+	}
+
+	//	ast, iss := env.Compile(`labels["aaa"] == "bbb"`)
+	// ast, iss := env.Compile(`labels["version"].matches('^1\\.(14|15)\\.\\d+$')`)
+	for _, txt := range c.celSelector.CelExpressions {
+		ast, iss := env.Compile(txt)
+		if iss.Err() != nil {
+			return false, iss.Err()
+		}
+
+		prg, _ := env.Program(ast)
+		result, _, err := prg.Eval(map[string]interface{}{
+			"labels": convertedLabels,
+			"claims": convertedClaims,
+		})
+		if err != nil {
+			return false, err
+		}
+		if !result.Value().(bool) {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // GetClusterClaims returns a map containing cluster claims from the status of cluster

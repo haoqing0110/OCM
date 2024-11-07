@@ -795,6 +795,13 @@ func filterClustersBySelector(
 		if ok := clusterSelector.Matches(cluster.Labels, helpers.GetClusterClaims(cluster)); !ok {
 			continue
 		}
+		if ok, err := clusterSelector.CELMatches(cluster.Labels, helpers.GetClusterClaims(cluster)); !ok {
+			if err != nil {
+				status := framework.NewStatus("", framework.Misconfigured, err.Error())
+				return []clusterapiv1beta1.ClusterDecision{}, status
+			}
+			continue
+		}
 		if !clusterNames.Has(cluster.Name) {
 			continue
 		}
