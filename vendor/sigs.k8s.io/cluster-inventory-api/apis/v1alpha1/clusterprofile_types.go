@@ -67,6 +67,10 @@ type ClusterProfileStatus struct {
 	// and is allowed to be customized by different cluster managers.
 	// +optional
 	Properties []Property `json:"properties,omitempty"`
+
+	// TokenRequests describes a list of token requests on this cluster and its
+	// approval status.
+	Credentials []Credential `json:"credentials,omitempty"`
 }
 
 // ClusterVersion represents version information about the cluster.
@@ -97,6 +101,54 @@ type Property struct {
 	// +kubebuilder:validation:MinLength=1
 	// +required
 	Value string `json:"value"`
+}
+
+// // TokenRequestRef points to a specific AuthTokenRequest object.
+//
+//	type TokenRequestRef struct {
+//		// APIGroup is the API group of the referred token request object.
+//		APIGroup string `json:"apiGroup"`
+//
+//		// Kind is the kind of the referred token request object.
+//		Kind string `json:"kind"`
+//
+//		// Name is the name of the referred token request object.
+//		Name string `json:"name"`
+//
+//		// Namespace is the namespace of the referred token request object.
+//		Namespace string `json:"namespace"`
+//	}
+//
+// // TokenRequest describes a token request on this cluster and its approval status.
+//
+//	type TokenRequest struct {
+//		// RequestRef points to a specific AuthTokenRequest object.
+//		// +required
+//		RequestRef TokenRequestRef `json:"requestRef"`
+//
+//		// Conditions describes the approval status of the token request.
+//		Conditions []metav1.Condition `json:"conditions"`
+//	}
+//
+// TokenRequestRef points to a specific AuthTokenRequest object.
+type AccessRef struct {
+	// Kind is the kind of the referred token request object.
+	Kind string `json:"kind"`
+
+	// Name is the name of the referred token request object.
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the referred token request object.
+	Namespace string `json:"namespace"`
+}
+
+type Credential struct {
+	// +required
+	Consumer string `json:"consumer"`
+
+	// RequestRef points to a specific AuthTokenRequest object.
+	// +required
+	AccessRef AccessRef `json:"accessRef"`
 }
 
 // Predefined healthy conditions indicate the cluster is in a good state or not.

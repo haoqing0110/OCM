@@ -27,12 +27,17 @@ import (
 
 type ApisV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	AuthTokenRequestsGetter
 	ClusterProfilesGetter
 }
 
 // ApisV1alpha1Client is used to interact with features provided by the apis group.
 type ApisV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *ApisV1alpha1Client) AuthTokenRequests(namespace string) AuthTokenRequestInterface {
+	return newAuthTokenRequests(c, namespace)
 }
 
 func (c *ApisV1alpha1Client) ClusterProfiles(namespace string) ClusterProfileInterface {

@@ -27,6 +27,10 @@ type FakeApisV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeApisV1alpha1) AuthTokenRequests(namespace string) v1alpha1.AuthTokenRequestInterface {
+	return &FakeAuthTokenRequests{c, namespace}
+}
+
 func (c *FakeApisV1alpha1) ClusterProfiles(namespace string) v1alpha1.ClusterProfileInterface {
 	return &FakeClusterProfiles{c, namespace}
 }

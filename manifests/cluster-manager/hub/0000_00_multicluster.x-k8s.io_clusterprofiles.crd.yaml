@@ -133,6 +133,40 @@ spec:
                   - type
                   type: object
                 type: array
+              credentials:
+                description: |-
+                  TokenRequests describes a list of token requests on this cluster and its
+                  approval status.
+                items:
+                  properties:
+                    accessRef:
+                      description: RequestRef points to a specific AuthTokenRequest
+                        object.
+                      properties:
+                        kind:
+                          description: Kind is the kind of the referred token request
+                            object.
+                          type: string
+                        name:
+                          description: Name is the name of the referred token request
+                            object.
+                          type: string
+                        namespace:
+                          description: Namespace is the namespace of the referred
+                            token request object.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      - namespace
+                      type: object
+                    consumer:
+                      type: string
+                  required:
+                  - accessRef
+                  - consumer
+                  type: object
+                type: array
               properties:
                 description: |-
                   Properties defines name/value pairs to represent properties of a cluster.

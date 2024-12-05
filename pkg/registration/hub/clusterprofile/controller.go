@@ -139,6 +139,7 @@ func (c *clusterProfileController) sync(ctx context.Context, syncCtx factory.Syn
 	for _, v := range managedCluster.Status.ClusterClaims {
 		cpProperties = append(cpProperties, cpv1alpha1.Property{Name: v.Name, Value: v.Value})
 	}
+	cpProperties = append(cpProperties, cpv1alpha1.Property{Name: "url", Value: managedCluster.Spec.ManagedClusterClientConfigs[0].URL})
 	newClusterProfile.Status.Properties = cpProperties
 
 	// sync status.conditions

@@ -23,6 +23,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// AuthTokenRequests returns a AuthTokenRequestInformer.
+	AuthTokenRequests() AuthTokenRequestInformer
 	// ClusterProfiles returns a ClusterProfileInformer.
 	ClusterProfiles() ClusterProfileInformer
 }
@@ -36,6 +38,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// AuthTokenRequests returns a AuthTokenRequestInformer.
+func (v *version) AuthTokenRequests() AuthTokenRequestInformer {
+	return &authTokenRequestInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // ClusterProfiles returns a ClusterProfileInformer.

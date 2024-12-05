@@ -12,7 +12,7 @@ rules:
   verbs: ["update"]
 # Allow hub to get/list/watch/create/delete namespace and service account
 - apiGroups: [""]
-  resources: ["namespaces", "serviceaccounts", "configmaps"]
+  resources: ["namespaces", "serviceaccounts", "configmaps", "secrets"]
   verbs: ["get", "list", "watch", "create", "delete", "update"]
 - apiGroups: [""]
   resources: ["pods"]
@@ -100,3 +100,11 @@ rules:
 - apiGroups: ["register.open-cluster-management.io"]
   resources: ["managedclusters/accept"]
   verbs: ["update"]
+# Allow hub to clusterpermission
+- apiGroups: ["rbac.open-cluster-management.io"]
+  resources: ["clusterpermissions"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Allow hub to managedserviceaccount
+- apiGroups: ["authentication.open-cluster-management.io"]
+  resources: ["managedserviceaccounts"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

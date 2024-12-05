@@ -25,12 +25,16 @@ import (
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	ocmfeature "open-cluster-management.io/api/feature"
 
+	permissionclientset "open-cluster-management.io/cluster-permission/client/clientset/versioned"
+	permissioninformer "open-cluster-management.io/cluster-permission/client/informers/externalversions"
+	msaclientset "open-cluster-management.io/managed-serviceaccount/pkg/generated/clientset/versioned"
 	commonhelpers "open-cluster-management.io/ocm/pkg/common/helpers"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/registration/hub/addon"
 	"open-cluster-management.io/ocm/pkg/registration/hub/clusterprofile"
 	"open-cluster-management.io/ocm/pkg/registration/hub/clusterrole"
 	"open-cluster-management.io/ocm/pkg/registration/hub/gc"
+	"open-cluster-management.io/ocm/pkg/registration/hub/kueuesecretcopy"
 	"open-cluster-management.io/ocm/pkg/registration/hub/lease"
 	"open-cluster-management.io/ocm/pkg/registration/hub/managedcluster"
 	"open-cluster-management.io/ocm/pkg/registration/hub/managedclusterset"
@@ -96,6 +100,16 @@ func (m *HubManagerOptions) RunControllerManager(ctx context.Context, controller
 		return err
 	}
 
+	permissionClient, err := permissionclientset.NewForConfig(controllerContext.KubeConfig)
+	if err != nil {
+		return err
+	}
+
+	msaClient, err := msaclientset.NewForConfig(controllerContext.KubeConfig)
+	if err != nil {
+		return err
+	}
+
 	clusterInformers := clusterv1informers.NewSharedInformerFactory(clusterClient, 30*time.Minute)
 	clusterProfileInformers := cpinformerv1alpha1.NewSharedInformerFactory(clusterProfileClient, 30*time.Minute)
 	workInformers := workv1informers.NewSharedInformerFactory(workClient, 30*time.Minute)
@@ -118,11 +132,25 @@ func (m *HubManagerOptions) RunControllerManager(ctx context.Context, controller
 			listOptions.LabelSelector = metav1.FormatLabelSelector(selector)
 		}))
 	addOnInformers := addoninformers.NewSharedInformerFactory(addOnClient, 30*time.Minute)
+	permissionInformers := permissioninformer.NewSharedInformerFactory(permissionClient, 30*time.Minute)
+	// to reduce cache size if there are larges number of secrets
+	secretInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, 30*time.Minute, kubeinformers.WithTweakListOptions(
+		func(listOptions *metav1.ListOptions) {
+			selector := &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "authentication.open-cluster-management.io/is-managed-serviceaccount",
+						Operator: metav1.LabelSelectorOpExists,
+					},
+				},
+			}
+			listOptions.LabelSelector = metav1.FormatLabelSelector(selector)
+		}))
 
 	return m.RunControllerManagerWithInformers(
 		ctx, controllerContext,
-		kubeClient, metadataClient, clusterClient, clusterProfileClient, addOnClient,
-		kubeInfomers, clusterInformers, clusterProfileInformers, workInformers, addOnInformers,
+		kubeClient, metadataClient, clusterClient, clusterProfileClient, addOnClient, permissionClient, msaClient,
+		kubeInfomers, secretInformers, clusterInformers, clusterProfileInformers, workInformers, addOnInformers, permissionInformers,
 	)
 }
 
@@ -134,11 +162,15 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	clusterClient clusterv1client.Interface,
 	clusterProfileClient cpclientset.Interface,
 	addOnClient addonclient.Interface,
+	permissionClient permissionclientset.Interface,
+	msaClient msaclientset.Interface,
 	kubeInformers kubeinformers.SharedInformerFactory,
+	secretInformers kubeinformers.SharedInformerFactory,
 	clusterInformers clusterv1informers.SharedInformerFactory,
 	clusterProfileInformers cpinformerv1alpha1.SharedInformerFactory,
 	workInformers workv1informers.SharedInformerFactory,
 	addOnInformers addoninformers.SharedInformerFactory,
+	permissionInformer permissioninformer.SharedInformerFactory,
 ) error {
 	csrApprover, err := csr.NewCSRApprover(kubeClient, kubeInformers, m.ClusterAutoApprovalUsers, controllerContext.EventRecorder)
 	if err != nil {
@@ -243,6 +275,14 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 			controllerContext.EventRecorder,
 		)
 	}
+	// TODO: feature gates
+	kueuesecretcopyController := kueuesecretcopy.NewKueueSecretCopyController(
+		kubeClient,
+		secretInformers.Core().V1().Secrets(),
+		clusterProfileClient,
+		clusterProfileInformers.Apis().V1alpha1().ClusterProfiles(),
+		controllerContext.EventRecorder,
+	)
 
 	gcController := gc.NewGCController(
 		kubeInformers.Rbac().V1().ClusterRoles().Lister(),
@@ -262,10 +302,12 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	go clusterInformers.Start(ctx.Done())
 	go workInformers.Start(ctx.Done())
 	go kubeInformers.Start(ctx.Done())
+	go secretInformers.Start(ctx.Done())
 	go addOnInformers.Start(ctx.Done())
 	if features.HubMutableFeatureGate.Enabled(ocmfeature.DefaultClusterSet) {
 		go clusterProfileInformers.Start(ctx.Done())
 	}
+	go permissionInformer.Start(ctx.Done())
 
 	go managedClusterController.Run(ctx, 1)
 	go taintController.Run(ctx, 1)
@@ -284,6 +326,8 @@ func (m *HubManagerOptions) RunControllerManagerWithInformers(
 	if features.HubMutableFeatureGate.Enabled(ocmfeature.ClusterProfile) {
 		go clusterProfileController.Run(ctx, 1)
 	}
+	// TODO: feature gates
+	go kueuesecretcopyController.Run(ctx, 1)
 
 	go gcController.Run(ctx, 1)
 
