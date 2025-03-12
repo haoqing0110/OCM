@@ -26,6 +26,7 @@ import (
 	operatorapiv1 "open-cluster-management.io/api/operator/v1"
 	"open-cluster-management.io/sdk-go/pkg/patcher"
 
+	"k8s.io/client-go/kubernetes/scheme"
 	testingcommon "open-cluster-management.io/ocm/pkg/common/testing"
 	"open-cluster-management.io/ocm/pkg/operator/helpers"
 	testinghelper "open-cluster-management.io/ocm/pkg/operator/helpers/testing"
@@ -140,9 +141,18 @@ func TestSync(t *testing.T) {
 			return
 		}
 		ssar := &authorizationv1.SelfSubjectAccessReview{}
-		if err := json.Unmarshal(data, ssar); err != nil {
-			t.Fatal(err)
+
+		contentType := req.Header.Get("Content-Type")
+		if contentType == "application/vnd.kubernetes.protobuf" {
+			if _, _, err := scheme.Codecs.UniversalDeserializer().Decode(data, nil, ssar); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if err := json.Unmarshal(data, ssar); err != nil {
+				t.Fatal(err)
+			}
 		}
+
 		if ssar.Spec.ResourceAttributes.Resource == "managedclusters" {
 			if ssar.Spec.ResourceAttributes.Subresource == "status" {
 				ssar.Status.Allowed = response.allowToOperateManagedClusterStatus
@@ -155,8 +165,16 @@ func TestSync(t *testing.T) {
 			ssar.Status.Allowed = true
 		}
 
-		w.Header().Set("Content-type", "application/json")
+		// set Content-Type as JSON
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
+
+		// set TypeMeta
+		ssar.TypeMeta = metav1.TypeMeta{
+			APIVersion: "authorization.k8s.io/v1",
+			Kind:       "SelfSubjectAccessReview",
+		}
+
 		if err := json.NewEncoder(w).Encode(ssar); err != nil {
 			t.Fatal(err)
 		}
