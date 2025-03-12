@@ -291,7 +291,7 @@ func (f *internalWorkBuilder) setAnnotations(work *workapiv1.ManifestWork) {
 func (f *internalWorkBuilder) bufferOfManifestWork(work *workapiv1.ManifestWork) int {
 	totalSize := 0
 	for _, manifest := range work.Spec.Workload.Manifests {
-		totalSize = totalSize + manifest.Size()
+		totalSize += manifest.Size()
 	}
 	if totalSize > f.workBuilder.manifestLimit {
 		return 0
