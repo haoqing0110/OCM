@@ -80,7 +80,7 @@ func Count(array []interface{}, iterator ConditionIterator) int {
 	count := 0
 	for index, data := range array {
 		if iterator(data, index) {
-			count++
+			count = count + 1
 		}
 	}
 	return count
