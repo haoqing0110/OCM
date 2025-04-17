@@ -1,12 +1,16 @@
 package helpers
 
 import (
+	"context"
+
 	"github.com/google/cel-go/cel"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	celconfig "k8s.io/apiserver/pkg/apis/cel"
 
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
 )
 
 type ClusterSelector struct {
@@ -15,7 +19,7 @@ type ClusterSelector struct {
 	celSelector   *CELSelector
 }
 
-func NewClusterSelector(selector clusterapiv1beta1.ClusterSelector, env *cel.Env) (*ClusterSelector, error) {
+func NewClusterSelector(selector clusterapiv1beta1.ClusterSelector, env *cel.Env, metricsRecorder *metrics.ScheduleMetrics) (*ClusterSelector, error) {
 	// build label selector
 	labelSelector, err := convertLabelSelector(&selector.LabelSelector)
 	if err != nil {
@@ -27,7 +31,7 @@ func NewClusterSelector(selector clusterapiv1beta1.ClusterSelector, env *cel.Env
 		return nil, err
 	}
 	// build cel selector
-	celSelector := NewCELSelector(env, selector.CelSelector.CelExpressions)
+	celSelector := NewCELSelector(env, selector.CelSelector.CelExpressions, metricsRecorder)
 	return &ClusterSelector{
 		labelSelector: labelSelector,
 		claimSelector: claimSelector,
@@ -48,7 +52,7 @@ func (c *ClusterSelector) Compile() []CompilationResult {
 // Matches evaluates whether a cluster matches all selectors.
 // Note: If CEL expressions are used, Compile() must be called before this method.
 // If Compile() has not been called, CEL expressions will not be evaluated.
-func (c *ClusterSelector) Matches(cluster *clusterapiv1.ManagedCluster) bool {
+func (c *ClusterSelector) Matches(ctx context.Context, cluster *clusterapiv1.ManagedCluster) bool {
 	// match with label selector
 	if ok := c.labelSelector.Matches(labels.Set(cluster.Labels)); !ok {
 		return false
@@ -61,7 +65,7 @@ func (c *ClusterSelector) Matches(cluster *clusterapiv1.ManagedCluster) bool {
 
 	// match with cel selector if exists
 	if c.celSelector != nil {
-		if ok := c.celSelector.Validate(cluster); !ok {
+		if ok, _ := c.celSelector.Validate(ctx, cluster, celconfig.RuntimeCELCostBudget); !ok {
 			return false
 		}
 	}

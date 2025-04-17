@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -195,12 +196,12 @@ func TestMatches(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			clusterSelector, err := NewClusterSelector(c.clusterselector, env)
+			clusterSelector, err := NewClusterSelector(c.clusterselector, env, nil)
 			if err != nil {
 				t.Errorf("unexpected err: %v", err)
 			}
 			clusterSelector.Compile()
-			result := clusterSelector.Matches(c.cluster)
+			result := clusterSelector.Matches(context.TODO(), c.cluster)
 			if c.expectedMatch != result {
 				t.Errorf("expected match to be %v but get : %v", c.expectedMatch, result)
 			}

@@ -2,6 +2,8 @@ module open-cluster-management.io/ocm
 
 go 1.23.6
 
+replace open-cluster-management.io/sdk-go => github.com/haoqing0110/sdk-go v0.0.0-20250421114937-c60c879d43e1
+
 require (
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
