@@ -86,6 +86,7 @@ spec:
               installNamespace:
                 default: open-cluster-management-agent-addon
                 description: |-
+                  Deprecated: Use AddonDeploymentConfig instead.
                   installNamespace is the namespace on the managed cluster to install the addon agent.
                   If it is not set, open-cluster-management-agent-addon namespace is used to install the addon agent.
                 maxLength: 63
@@ -286,6 +287,7 @@ spec:
                 type: string
               registrations:
                 description: |-
+                  Deprecated
                   registrations is the configurations for the addon agent to register to hub. It should be set by each addon controller
                   on hub to define how the addon agent on managedcluster is registered. With the registration defined,
                   The addon agent can access to kube apiserver with kube style API or other endpoints on hub cluster with client

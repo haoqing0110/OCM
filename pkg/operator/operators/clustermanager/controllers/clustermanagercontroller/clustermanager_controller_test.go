@@ -809,6 +809,7 @@ func getManifestFiles() []string {
 		"cluster-manager/management/registration/deployment.yaml",
 		"cluster-manager/management/registration/webhook-deployment.yaml",
 		"cluster-manager/management/work/webhook-deployment.yaml",
+		"cluster-manager/management/addon/webhook-deployment.yaml",
 	}
 }
 

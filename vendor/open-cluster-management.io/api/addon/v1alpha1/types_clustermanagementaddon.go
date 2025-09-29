@@ -45,6 +45,7 @@ type ClusterManagementAddOnSpec struct {
 	// +optional
 	AddOnConfiguration ConfigCoordinates `json:"addOnConfiguration,omitempty"`
 
+	// Deprecated: Wil be removed and replaced with DefaultConfigs in v1beta1.
 	// supportedConfigs is a list of configuration types supported by add-on.
 	// An empty list means the add-on does not require configurations.
 	// The default is an empty list
