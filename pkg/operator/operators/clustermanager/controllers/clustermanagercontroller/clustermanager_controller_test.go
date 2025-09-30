@@ -547,7 +547,7 @@ func TestSyncDeploy(t *testing.T) {
 		"open-cluster-management.io/cluster-name": "test"}
 	clusterManager := newClusterManager("testhub")
 	clusterManager.SetLabels(labels)
-	assertDeployments(t, clusterManager, 28, 12)
+	assertDeployments(t, clusterManager, 29, 12)
 }
 
 func TestSyncDeployWithGRPCAuthEnabled(t *testing.T) {
@@ -565,7 +565,7 @@ func TestSyncDeployWithGRPCAuthEnabled(t *testing.T) {
 			},
 		},
 	}
-	assertDeployments(t, clusterManager, 32, 12)
+	assertDeployments(t, clusterManager, 33, 12)
 }
 
 func TestSyncDeployNoWebhook(t *testing.T) {

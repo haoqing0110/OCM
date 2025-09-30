@@ -38,6 +38,11 @@ func (dst *ManagedClusterAddOnV1Alpha1) ConvertFrom(srcRaw conversion.Hub) error
 
 // ConvertManagedClusterAddOnToV1Beta1 converts v1alpha1 ManagedClusterAddOn to v1beta1
 func ConvertManagedClusterAddOnToV1Beta1(src *addonv1alpha1.ManagedClusterAddOn, dst *addonv1beta1.ManagedClusterAddOn) error {
+	// Convert TypeMeta
+	dst.TypeMeta = src.TypeMeta
+	dst.APIVersion = "addon.open-cluster-management.io/v1beta1"
+	dst.Kind = "ManagedClusterAddOn"
+
 	// Convert ObjectMeta
 	dst.ObjectMeta = src.ObjectMeta
 
@@ -87,6 +92,11 @@ func ConvertManagedClusterAddOnToV1Beta1(src *addonv1alpha1.ManagedClusterAddOn,
 
 // ConvertManagedClusterAddOnFromV1Beta1 converts v1beta1 ManagedClusterAddOn to v1alpha1
 func ConvertManagedClusterAddOnFromV1Beta1(src *addonv1beta1.ManagedClusterAddOn, dst *addonv1alpha1.ManagedClusterAddOn) error {
+	// Convert TypeMeta
+	dst.TypeMeta = src.TypeMeta
+	dst.APIVersion = "addon.open-cluster-management.io/v1alpha1"
+	dst.Kind = "ManagedClusterAddOn"
+
 	// Convert ObjectMeta
 	dst.ObjectMeta = src.ObjectMeta
 

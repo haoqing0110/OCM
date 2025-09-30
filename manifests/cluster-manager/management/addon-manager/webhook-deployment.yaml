@@ -58,7 +58,7 @@ spec:
         image: {{ .AddOnManagerImage }}
         args:
         - /addon
-        - "webhook-server"
+        - "conversion-webhook"
         - "port=9443"
         {{ if .HostedMode }}
         - "--kubeconfig=/var/run/secrets/hub/kubeconfig"

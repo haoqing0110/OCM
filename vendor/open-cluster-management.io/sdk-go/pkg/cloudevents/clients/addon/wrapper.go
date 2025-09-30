@@ -17,6 +17,7 @@ import (
 // AddonClientSetWrapper wraps AddonV1Alpha1ClientWrapper to an addon clientset interface
 type AddonClientSetWrapper struct {
 	*AddonV1Alpha1ClientWrapper
+	*AddonV1Beta1ClientWrapper
 }
 
 var _ addonclientset.Interface = &AddonClientSetWrapper{}
@@ -30,7 +31,7 @@ func (a AddonClientSetWrapper) AddonV1alpha1() addonv1alpha1client.AddonV1alpha1
 }
 
 func (a AddonClientSetWrapper) AddonV1beta1() addonv1beta1client.AddonV1beta1Interface {
-	panic("AddonV1beta1 is unsupported")
+	return a.AddonV1Beta1ClientWrapper
 }
 
 // AddonV1Alpha1ClientWrapper wraps ManagedClusterAddOnClient to AddonV1alpha1Interface
@@ -60,6 +61,25 @@ func (c *AddonV1Alpha1ClientWrapper) ManagedClusterAddOns(namespace string) addo
 	return c.ManagedClusterAddOnClient.Namespace(namespace)
 }
 
+// AddonV1Beta1ClientWrapper wraps to provide v1beta1 interface compatibility
+// Note: v1beta1 is not fully supported yet in cloud events client, methods will panic
+type AddonV1Beta1ClientWrapper struct {
+}
+
+var _ addonv1beta1client.AddonV1beta1Interface = &AddonV1Beta1ClientWrapper{}
+
+func (c *AddonV1Beta1ClientWrapper) ClusterManagementAddOns() addonv1beta1client.ClusterManagementAddOnInterface {
+	panic("ClusterManagementAddOns is unsupported in cloud events client")
+}
+
+func (c *AddonV1Beta1ClientWrapper) RESTClient() rest.Interface {
+	panic("RESTClient is unsupported in cloud events client")
+}
+
+func (c *AddonV1Beta1ClientWrapper) ManagedClusterAddOns(namespace string) addonv1beta1client.ManagedClusterAddOnInterface {
+	panic("ManagedClusterAddOns v1beta1 is unsupported in cloud events client, use v1alpha1 instead")
+}
+
 // ManagedClusterAddOnInterface returns a client for ManagedClusterAddOn
 func ManagedClusterAddOnInterface(ctx context.Context, opt *options.GenericClientOptions[*addonapiv1alpha1.ManagedClusterAddOn]) (addonclientset.Interface, error) {
 	cloudEventsClient, err := opt.AgentClient(ctx)
@@ -69,5 +89,8 @@ func ManagedClusterAddOnInterface(ctx context.Context, opt *options.GenericClien
 
 	addonClient := NewManagedClusterAddOnClient(cloudEventsClient, opt.WatcherStore())
 
-	return &AddonClientSetWrapper{&AddonV1Alpha1ClientWrapper{addonClient}}, nil
+	return &AddonClientSetWrapper{
+		&AddonV1Alpha1ClientWrapper{addonClient},
+		&AddonV1Beta1ClientWrapper{},
+	}, nil
 }
