@@ -6,6 +6,7 @@ import (
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 
 	clusterclientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterinformers "open-cluster-management.io/api/client/cluster/informers/externalversions"
@@ -141,7 +142,10 @@ func RunControllerManagerWithInformers(
 	go clusterInformers.Start(ctx.Done())
 	go replicaSetInformerFactory.Start(ctx.Done())
 	if features.HubMutableFeatureGate.Enabled(ocmfeature.ManifestWorkReplicaSet) {
+		klog.Warningf("HHHHQQQQ: ManifestWorkReplicaSet enabled")
 		go manifestWorkReplicaSetController.Run(ctx, 5)
+	} else {
+		klog.Warningf("HHHHQQQQ: ManifestWorkReplicaSet not enabled")
 	}
 	if features.HubMutableFeatureGate.Enabled(ocmfeature.CleanUpCompletedManifestWork) {
 		go manifestWorkGarbageCollectionController.Run(ctx, 5)
