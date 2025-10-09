@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 
 	clusterlister "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
 	worklisterv1 "open-cluster-management.io/api/client/work/listers/work/v1"
@@ -57,22 +58,30 @@ func (d *deployReconciler) reconcile(ctx context.Context, mwrSet *workapiv1alpha
 		}
 
 		for _, mw := range manifestWorks {
+			existingClusterNames.Insert(mw.Namespace)
+
 			// Check if ManifestWorkTemplate changes, ManifestWork will need to be updated.
 			newMW := &workv1.ManifestWork{}
 			mw.ObjectMeta.DeepCopyInto(&newMW.ObjectMeta)
 			mwrSet.Spec.ManifestWorkTemplate.DeepCopyInto(&newMW.Spec)
 
-			// TODO: Create NeedToApply function by workApplier to check the manifestWork->spec hash value from the cache.
+			var rolloutClusterStatus clustersdkv1alpha1.ClusterRolloutStatus
+			// If spec doesn't match, treat this cluster as needing update (ToApply)
 			if !workapplier.ManifestWorkEqual(newMW, mw) {
-				continue
-			}
-
-			existingClusterNames.Insert(mw.Namespace)
-			rolloutClusterStatus, err := d.clusterRolloutStatusFunc(mw.Namespace, *mw)
-
-			if err != nil {
-				errs = append(errs, err)
-				continue
+				now := metav1.Now()
+				rolloutClusterStatus = clustersdkv1alpha1.ClusterRolloutStatus{
+					ClusterName:        mw.Namespace,
+					Status:             clustersdkv1alpha1.ToApply,
+					LastTransitionTime: &now,
+				}
+			} else {
+				// Spec matches, use actual status from ManifestWork
+				var err error
+				rolloutClusterStatus, err = d.clusterRolloutStatusFunc(mw.Namespace, *mw)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
 			}
 			existingRolloutClsStatus = append(existingRolloutClsStatus, rolloutClusterStatus)
 		}
@@ -98,6 +107,16 @@ func (d *deployReconciler) reconcile(ctx context.Context, mwrSet *workapiv1alpha
 			apimeta.SetStatusCondition(&mwrSet.Status.Conditions, GetPlacementDecisionVerified(workapiv1alpha1.ReasonNotAsExpected, ""))
 
 			continue
+		}
+
+		// Debug logging
+		klog.Infof("DEBUG: Rollout result for placement %s: %d clusters to rollout, %d clusters timeout",
+			placementRef.Name, len(rolloutResult.ClustersToRollout), len(rolloutResult.ClustersTimeOut))
+		for i, cls := range rolloutResult.ClustersToRollout {
+			klog.Infof("DEBUG:   ToRollout[%d]: %s, Status: %s, LastTransitionTime: %v", i, cls.ClusterName, cls.Status, cls.LastTransitionTime)
+		}
+		for i, status := range existingRolloutClsStatus {
+			klog.Infof("DEBUG: ExistingStatus[%d]: %s, Status: %s, LastTransitionTime: %v", i, status.ClusterName, status.Status, status.LastTransitionTime)
 		}
 
 		if rolloutResult.RecheckAfter != nil && *rolloutResult.RecheckAfter < minRequeue {
