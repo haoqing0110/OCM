@@ -39,6 +39,10 @@ var (
 		"cluster-manager/hub/work/webhook-clusterrole.yaml",
 		"cluster-manager/hub/work/webhook-clusterrolebinding.yaml",
 		"cluster-manager/hub/work/webhook-serviceaccount.yaml",
+		// addon-webhook
+		"cluster-manager/hub/addon-manager/webhook-clusterrole.yaml",
+		"cluster-manager/hub/addon-manager/webhook-clusterrolebinding.yaml",
+		"cluster-manager/hub/addon-manager/webhook-serviceaccount.yaml",
 		// work executor admin
 		"cluster-manager/hub/work/executor-admin-clusterrole.yaml",
 		// placement
@@ -66,10 +70,13 @@ var (
 	hubDefaultWebhookServiceFiles = []string{
 		"cluster-manager/hub/registration/webhook-service.yaml",
 		"cluster-manager/hub/work/webhook-service.yaml",
+		"cluster-manager/hub/addon-manager/webhook-service.yaml",
 	}
 	hubHostedWebhookServiceFiles = []string{
 		"cluster-manager/hub/registration/webhook-service-hosted.yaml",
 		"cluster-manager/hub/work/webhook-service-hosted.yaml",
+		// Note: Addon conversion webhook doesn't need hosted mode service
+		// because conversion is configured directly in the CRD spec
 	}
 
 	// hubHostedWebhookEndpointFiles only apply when the deploy mode is hosted and address is IPFormat.

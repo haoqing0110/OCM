@@ -292,6 +292,7 @@ func (n *clusterManagerController) sync(ctx context.Context, controllerContext f
 	encodedCaBundle := base64.StdEncoding.EncodeToString([]byte(caBundle))
 	config.RegistrationAPIServiceCABundle = encodedCaBundle
 	config.WorkAPIServiceCABundle = encodedCaBundle
+	config.AddonAPIServiceCABundle = encodedCaBundle
 
 	// check imagePulSecret here because there will be a warning event FailedToRetrieveImagePullSecret
 	// if imagePullSecret does not exist.

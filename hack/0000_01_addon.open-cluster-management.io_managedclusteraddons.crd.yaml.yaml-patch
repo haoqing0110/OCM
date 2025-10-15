@@ -1,0 +1,16 @@
+#This is yaml-patch config file. It's used to patch conversion webhook config to clusterset crd
+- op: add
+  path: /spec/conversion
+  value:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: cluster-manager-addon-webhook
+          namespace: "{{ .ClusterManagerNamespace }}"
+          path: "/convert"
+          port: 9443
+        caBundle: {{ .AddonAPIServiceCABundle }}
+      conversionReviewVersions:
+      - v1alpha1
+      - v1beta1

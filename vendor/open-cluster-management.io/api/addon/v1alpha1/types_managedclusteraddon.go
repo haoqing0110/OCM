@@ -34,6 +34,7 @@ type ManagedClusterAddOn struct {
 // ManagedClusterAddOnSpec defines the install configuration of
 // an addon agent on managed cluster.
 type ManagedClusterAddOnSpec struct {
+	// Deprecated: Use AddonDeploymentConfig instead.
 	// installNamespace is the namespace on the managed cluster to install the addon agent.
 	// If it is not set, open-cluster-management-agent-addon namespace is used to install the addon agent.
 	// +optional
@@ -141,6 +142,7 @@ type ManagedClusterAddOnStatus struct {
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
+	// Deprecated
 	// registrations is the configurations for the addon agent to register to hub. It should be set by each addon controller
 	// on hub to define how the addon agent on managedcluster is registered. With the registration defined,
 	// The addon agent can access to kube apiserver with kube style API or other endpoints on hub cluster with client

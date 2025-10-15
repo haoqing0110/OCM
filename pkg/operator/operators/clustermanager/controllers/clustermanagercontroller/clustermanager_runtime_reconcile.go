@@ -30,6 +30,7 @@ var (
 		"cluster-manager/management/registration/deployment.yaml",
 		"cluster-manager/management/registration/webhook-deployment.yaml",
 		"cluster-manager/management/work/webhook-deployment.yaml",
+		"cluster-manager/management/addon-manager/webhook-deployment.yaml",
 		"cluster-manager/management/placement/deployment.yaml",
 	}
 
@@ -244,6 +245,7 @@ func getSAs(mwctrEnabled, addonManagerEnabled, grpcAuthEnabled bool) []string {
 		"registration-controller-sa",
 		"registration-webhook-sa",
 		"work-webhook-sa",
+		"addon-webhook-sa",
 		"placement-controller-sa",
 	}
 	if mwctrEnabled {

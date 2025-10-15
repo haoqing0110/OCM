@@ -141,3 +141,4 @@ ifeq "" "$(wildcard $(GOLANGCI_LINT))"
 else
 	$(info Using existing golangci-lint from "$(GOLANGCI_LINT)")
 endif
+

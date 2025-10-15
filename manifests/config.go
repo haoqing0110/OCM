@@ -10,6 +10,7 @@ type HubConfig struct {
 	RegistrationAPIServiceCABundle string
 	WorkImage                      string
 	WorkAPIServiceCABundle         string
+	AddonAPIServiceCABundle        string
 	PlacementImage                 string
 	Replica                        int32
 	HostedMode                     bool
