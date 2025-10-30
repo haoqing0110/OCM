@@ -52,6 +52,9 @@ type ClusterRolloutStatus struct {
 	LastTransitionTime *metav1.Time
 	// TimeOutTime is the timeout time when the status is progressing or failed (optional field).
 	TimeOutTime *metav1.Time
+	// RecheckTime is the time when the cluster should be rechecked (optional field).
+	// Used for succeeded status to track when the minSuccessTime (soak time) period ends.
+	RecheckTime *metav1.Time
 }
 
 // RolloutResult contains list of clusters that are timeOut, removed and required to rollOut. A
@@ -472,6 +475,11 @@ func determineRolloutStatus(
 		// still add it to the list of rolloutClusters
 		minSuccessTimeTime := getTimeOutTime(status.LastTransitionTime, minSuccessTime)
 		if RolloutClock.Now().Before(minSuccessTimeTime.Time) {
+			remaining := minSuccessTimeTime.Time.Sub(RolloutClock.Now())
+			fmt.Printf("DEBUG determineRolloutStatus: Cluster %s is Succeeded but in soak time. LastTransition=%v, SoakEnds=%v, Remaining=%v\n",
+				status.ClusterName, status.LastTransitionTime, minSuccessTimeTime, remaining)
+			// Set RecheckTime to track when the soak period ends
+			status.RecheckTime = minSuccessTimeTime
 			rolloutClusters = append(rolloutClusters, *status)
 		}
 
@@ -600,17 +608,40 @@ func decisionGroupsToGroupKeys(decisionsGroup []clusterv1alpha1.MandatoryDecisio
 
 func minRecheckAfter(rolloutClusters []ClusterRolloutStatus, minSuccessTime time.Duration) *time.Duration {
 	var minRecheckAfter *time.Duration
+	fmt.Printf("DEBUG minRecheckAfter: Processing %d clusters, minSuccessTime=%v\n", len(rolloutClusters), minSuccessTime)
+
 	for _, r := range rolloutClusters {
+		fmt.Printf("DEBUG minRecheckAfter: Cluster %s, Status=%v, TimeOutTime=%v, RecheckTime=%v\n",
+			r.ClusterName, r.Status, r.TimeOutTime, r.RecheckTime)
+
+		// Check TimeOutTime for Progressing/Failed clusters
 		if r.TimeOutTime != nil {
 			timeOut := r.TimeOutTime.Sub(RolloutClock.Now())
+			fmt.Printf("DEBUG minRecheckAfter: Cluster %s has TimeOutTime, remaining=%v\n", r.ClusterName, timeOut)
 			if minRecheckAfter == nil || *minRecheckAfter > timeOut {
 				minRecheckAfter = &timeOut
 			}
 		}
+
+		// Check RecheckTime for Succeeded clusters in soak period
+		if r.RecheckTime != nil {
+			recheckDuration := r.RecheckTime.Sub(RolloutClock.Now())
+			fmt.Printf("DEBUG minRecheckAfter: Cluster %s has RecheckTime, remaining soak time=%v\n", r.ClusterName, recheckDuration)
+			if minRecheckAfter == nil || *minRecheckAfter > recheckDuration {
+				minRecheckAfter = &recheckDuration
+			}
+		}
 	}
+
+	fmt.Printf("DEBUG minRecheckAfter: Before minSuccessTime fallback, minRecheckAfter=%v\n", minRecheckAfter)
+
+	// Fallback to minSuccessTime if no recheck time was calculated
+	// This should rarely be needed now since we track RecheckTime properly
 	if minSuccessTime != 0 && (minRecheckAfter == nil || minSuccessTime < *minRecheckAfter) {
+		fmt.Printf("DEBUG minRecheckAfter: Using minSuccessTime fallback: %v\n", minSuccessTime)
 		minRecheckAfter = &minSuccessTime
 	}
 
+	fmt.Printf("DEBUG minRecheckAfter: Final result=%v\n", minRecheckAfter)
 	return minRecheckAfter
 }
