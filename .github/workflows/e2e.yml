@@ -15,7 +15,7 @@ on:
       - release-*
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   GO_REQUIRED_MIN_VERSION: ''
   USE_EXISTING_CLUSTER: false # set to true to use an existing kind cluster for debugging with act
 
@@ -30,9 +30,9 @@ jobs:
         run: sudo chown runner:docker /var/run/docker.sock
         if: ${{ env.ACT }} # this step only runs locally when using the https://github.com/nektos/act to debug the e2e
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.1
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup kind
@@ -68,9 +68,9 @@ jobs:
         run: sudo chown runner:docker /var/run/docker.sock
         if: ${{ env.ACT }} # this step only runs locally when using the https://github.com/nektos/act to debug the e2e
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.1
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup kind
@@ -106,9 +106,9 @@ jobs:
         run: sudo chown runner:docker /var/run/docker.sock
         if: ${{ env.ACT }} # this step only runs locally when using the https://github.com/nektos/act to debug the e2e
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.1
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup kind

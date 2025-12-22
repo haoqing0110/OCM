@@ -1,0 +1,23 @@
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.25 AS builder
+WORKDIR /go/src/open-cluster-management.io/ocm
+COPY . .
+ENV GO_PACKAGE open-cluster-management.io/ocm
+
+RUN CGO_ENABLED=0 GO_BUILD_PACKAGES=./cmd/addon make build --warn-undefined-variables
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+LABEL \
+      url="https://github.com/stolostron/ocm" \
+      name="multicluster-engine/addon-manager-rhel9" \
+      summary="addon-manager" \
+      description="addon-manager" \
+      io.k8s.description="addon-manager" \
+      io.k8s.display-name="addon-manager" \
+      com.redhat.component="multicluster-engine-addon-manager-container" \
+      io.openshift.tags="data,images"
+
+ENV USER_UID=10001
+COPY --from=builder /go/src/open-cluster-management.io/ocm/addon /
+
+USER ${USER_UID}

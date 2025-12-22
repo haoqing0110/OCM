@@ -1,0 +1,24 @@
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_9_1.25 AS builder
+WORKDIR /go/src/open-cluster-management.io/ocm
+COPY . .
+ENV GO_PACKAGE open-cluster-management.io/ocm
+
+RUN CGO_ENABLED=0 GO_BUILD_PACKAGES=./cmd/placement make build --warn-undefined-variables
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+LABEL \
+      url="https://github.com/stolostron/ocm" \
+      name="multicluster-engine/placement-rhel9" \
+      summary="placement" \
+      description="placement" \
+      io.k8s.description="placement" \
+      io.k8s.display-name="placement" \
+      com.redhat.component="multicluster-engine-placement-container" \
+      io.openshift.tags="data,images"
+
+ENV USER_UID=10001
+
+COPY --from=builder /go/src/open-cluster-management.io/ocm/placement /
+
+USER ${USER_UID}

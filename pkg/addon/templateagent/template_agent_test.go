@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/library-go/pkg/operator/events/eventstesting"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -683,7 +682,6 @@ func TestAddonTemplateAgentManifests(t *testing.T) {
 				addonClient,
 				addonInformerFactory,
 				kubeInformers.Rbac().V1().RoleBindings().Lister(),
-				eventstesting.NewTestingEventRecorder(t),
 				addonfactory.GetAddOnDeploymentConfigValues(
 					utils.NewAddOnDeploymentConfigGetter(addonClient),
 					addonfactory.ToAddOnCustomizedVariableValues,
@@ -868,6 +866,47 @@ func TestAgentInstallNamespace(t *testing.T) {
 			),
 			expected: "test-install-namespace",
 		},
+		{
+			name: "empty string agentInstallNamespace should use template namespace",
+			addonTemplate: &addonapiv1alpha1.AddOnTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "hello-template",
+				},
+				Spec: addonapiv1alpha1.AddOnTemplateSpec{
+					AgentSpec: workapiv1.ManifestWorkSpec{
+						Workload: workapiv1.ManifestsTemplate{
+							Manifests: []workapiv1.Manifest{
+								{RawExtension: runtime.RawExtension{Raw: deploymentRaw}},
+							},
+						},
+					},
+				},
+			},
+			addonDeploymentConfig: &addonapiv1alpha1.AddOnDeploymentConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "hello-config",
+					Namespace: "default",
+				},
+				Spec: addonapiv1alpha1.AddOnDeploymentConfigSpec{
+					AgentInstallNamespace: "",
+					CustomizedVariables: []addonapiv1alpha1.CustomizedVariable{
+						{
+							Name:  "LOG_LEVEL",
+							Value: "4",
+						},
+					},
+				},
+			},
+			managedClusterAddonBuilder: newManagedClusterAddonBuilder(
+				&addonapiv1alpha1.ManagedClusterAddOn{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      addonName,
+						Namespace: clusterName,
+					},
+				},
+			),
+			expected: "test-ns",
+		},
 	}
 
 	for _, tc := range cases {
@@ -911,7 +950,6 @@ func TestAgentInstallNamespace(t *testing.T) {
 				addonClient,
 				addonInformerFactory,
 				kubeInformers.Rbac().V1().RoleBindings().Lister(),
-				eventstesting.NewTestingEventRecorder(t),
 				addonfactory.GetAddOnDeploymentConfigValues(
 					utils.NewAddOnDeploymentConfigGetter(addonClient),
 					addonfactory.ToAddOnCustomizedVariableValues,
@@ -1081,7 +1119,6 @@ func TestAgentManifestConfigs(t *testing.T) {
 			addonClient,
 			addonInformerFactory,
 			kubeInformers.Rbac().V1().RoleBindings().Lister(),
-			eventstesting.NewTestingEventRecorder(t),
 			addonfactory.GetAddOnDeploymentConfigValues(
 				utils.NewAddOnDeploymentConfigGetter(addonClient),
 				addonfactory.ToAddOnCustomizedVariableValues,

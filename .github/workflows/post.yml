@@ -13,7 +13,7 @@ on:
 
 env:
   # Common versions
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   GO_REQUIRED_MIN_VERSION: ''
 
 permissions:
@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.1
       - name: install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: unit
@@ -52,9 +52,9 @@ jobs:
         image-name: [ registration-operator, registration, work, placement, addon-manager ]
     steps:
       - name: checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.1
       - name: install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: install imagebuilder
@@ -96,7 +96,7 @@ jobs:
     needs: [ images ]
     steps:
       - name: checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.1
       # Step to install Skopeo
       - name: Install Skopeo and jq
         run: |
@@ -138,7 +138,7 @@ jobs:
     name: trigger clusteradm e2e
     runs-on: ubuntu-latest
     steps:
-      - uses: peter-evans/repository-dispatch@v3
+      - uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ secrets.OCM_BOT_PAT }}
           repository: open-cluster-management-io/clusteradm

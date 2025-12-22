@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openshift/library-go/pkg/controller/factory"
-	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/pkg/errors"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
@@ -22,25 +24,29 @@ import (
 	workinformer "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 	worklister "open-cluster-management.io/api/client/work/listers/work/v1"
 	workapiv1 "open-cluster-management.io/api/work/v1"
+	"open-cluster-management.io/sdk-go/pkg/basecontroller/factory"
+	"open-cluster-management.io/sdk-go/pkg/logging"
 	"open-cluster-management.io/sdk-go/pkg/patcher"
 
 	commonhelper "open-cluster-management.io/ocm/pkg/common/helpers"
-	"open-cluster-management.io/ocm/pkg/common/queue"
-	"open-cluster-management.io/ocm/pkg/work/helper"
 	"open-cluster-management.io/ocm/pkg/work/spoke/apply"
 	"open-cluster-management.io/ocm/pkg/work/spoke/auth"
 )
 
 var (
-	// ResyncInterval defines the maximum interval for resyncing a ManifestWork. It is used to:
-	//   1) Set the `ResyncEvery` for the `ManifestWorkAgent` controller;
-	//   2) Requeue a ManifestWork after it has been successfully reconciled.
-	ResyncInterval = 5 * time.Minute
+	// ResyncInterval defines the base interval for periodic reconciliation via AddAfter.
+	// Used to requeue a ManifestWork after it has been successfully reconciled.
+	ResyncInterval = 4 * time.Minute
 )
 
+const controllerName = "ManifestWorkController"
+
 type workReconcile interface {
-	reconcile(ctx context.Context, controllerContext factory.SyncContext, mw *workapiv1.ManifestWork,
-		amw *workapiv1.AppliedManifestWork) (*workapiv1.ManifestWork, *workapiv1.AppliedManifestWork, error)
+	reconcile(ctx context.Context,
+		controllerContext factory.SyncContext,
+		mw *workapiv1.ManifestWork,
+		amw *workapiv1.AppliedManifestWork,
+		results []applyResult) (*workapiv1.ManifestWork, *workapiv1.AppliedManifestWork, []applyResult, error)
 }
 
 // ManifestWorkController is to reconcile the workload resources
@@ -58,7 +64,6 @@ type ManifestWorkController struct {
 
 // NewManifestWorkController returns a ManifestWorkController
 func NewManifestWorkController(
-	recorder events.Recorder,
 	spokeDynamicClient dynamic.Interface,
 	spokeKubeClient kubernetes.Interface,
 	spokeAPIExtensionClient apiextensionsclient.Interface,
@@ -70,6 +75,8 @@ func NewManifestWorkController(
 	hubHash, agentID string,
 	restMapper meta.RESTMapper,
 	validator auth.ExecutorValidator) factory.Controller {
+
+	syncCtx := factory.NewSyncContext("manifestwork-controller")
 
 	controller := &ManifestWorkController{
 		manifestWorkPatcher: patcher.NewPatcher[
@@ -91,26 +98,33 @@ func NewManifestWorkController(
 			},
 			&appliedManifestWorkReconciler{
 				spokeDynamicClient: spokeDynamicClient,
-				rateLimiter:        workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 1000*time.Second),
+				rateLimiter:        workqueue.NewTypedItemExponentialFailureRateLimiter[string](5*time.Millisecond, 1000*time.Second),
 			},
 		},
 	}
 
+	_, err := manifestWorkInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    onAddFunc(syncCtx.Queue()),
+		UpdateFunc: onUpdateFunc(syncCtx.Queue()),
+	})
+	utilruntime.Must(err)
+
 	return factory.New().
-		WithInformersQueueKeysFunc(queue.QueueKeyByMetaName, manifestWorkInformer.Informer()).
-		WithFilteredEventsInformersQueueKeyFunc(
-			helper.AppliedManifestworkQueueKeyFunc(hubHash),
-			helper.AppliedManifestworkHubHashFilter(hubHash),
-			appliedManifestWorkInformer.Informer()).
-		WithSync(controller.sync).ResyncEvery(ResyncInterval).ToController("ManifestWorkAgent", recorder)
+		WithBareInformers(
+			manifestWorkInformer.Informer(),
+			// we do not need to reconcile with event of appliedemanifestwork, just ensure cache is synced.
+			appliedManifestWorkInformer.Informer(),
+		).
+		WithSyncContext(syncCtx).
+		WithSync(controller.sync).ToController(controllerName)
 }
 
 // sync is the main reconcile loop for manifest work. It is triggered in two scenarios
 // 1. ManifestWork API changes
 // 2. Resources defined in manifest changed on spoke
-func (m *ManifestWorkController) sync(ctx context.Context, controllerContext factory.SyncContext) error {
-	manifestWorkName := controllerContext.QueueKey()
-	klog.V(5).Infof("Reconciling ManifestWork %q", manifestWorkName)
+func (m *ManifestWorkController) sync(ctx context.Context, controllerContext factory.SyncContext, manifestWorkName string) error {
+	logger := klog.FromContext(ctx).WithValues("manifestWorkName", manifestWorkName)
+	logger.V(5).Info("Reconciling ManifestWork")
 
 	oldManifestWork, err := m.manifestWorkLister.Get(manifestWorkName)
 	if apierrors.IsNotFound(err) {
@@ -121,6 +135,10 @@ func (m *ManifestWorkController) sync(ctx context.Context, controllerContext fac
 		return err
 	}
 	manifestWork := oldManifestWork.DeepCopy()
+
+	// set tracing key from work if there is any
+	logger = logging.SetLogTracingByObject(logger, manifestWork)
+	ctx = klog.NewContext(ctx, logger)
 
 	// no work to do if we're deleted
 	if !manifestWork.DeletionTimestamp.IsZero() {
@@ -145,11 +163,12 @@ func (m *ManifestWorkController) sync(ctx context.Context, controllerContext fac
 	}
 	newAppliedManifestWork := appliedManifestWork.DeepCopy()
 
-	var requeueTime = ResyncInterval
+	var requeueTime = wait.Jitter(ResyncInterval, 0.5)
 	var errs []error
+	var results []applyResult
 	for _, reconciler := range m.reconcilers {
-		manifestWork, newAppliedManifestWork, err = reconciler.reconcile(
-			ctx, controllerContext, manifestWork, newAppliedManifestWork)
+		manifestWork, newAppliedManifestWork, results, err = reconciler.reconcile(
+			ctx, controllerContext, manifestWork, newAppliedManifestWork, results)
 		var rqe commonhelper.RequeueError
 		if err != nil && errors.As(err, &rqe) {
 			if requeueTime > rqe.RequeueTime {
@@ -161,28 +180,23 @@ func (m *ManifestWorkController) sync(ctx context.Context, controllerContext fac
 	}
 
 	// Update work status
-	mwUpdated, err := m.manifestWorkPatcher.PatchStatus(ctx, manifestWork, manifestWork.Status, oldManifestWork.Status)
+	_, err = m.manifestWorkPatcher.PatchStatus(ctx, manifestWork, manifestWork.Status, oldManifestWork.Status)
 	if err != nil {
 		return err
 	}
 
-	amwUpdated, err := m.appliedManifestWorkPatcher.PatchStatus(
+	_, err = m.appliedManifestWorkPatcher.PatchStatus(
 		ctx, newAppliedManifestWork, newAppliedManifestWork.Status, appliedManifestWork.Status)
 	if err != nil {
 		return err
 	}
 
 	if len(errs) > 0 {
-		klog.Errorf("Reconcile work %s fails with err: %v", manifestWorkName, errs)
 		return utilerrors.NewAggregate(errs)
 	}
 
-	// we do not need to requeue when manifestwork/appliedmanifestwork are updated, since a following
-	// reconcile will be executed with update event, and the requeue can be set in this following reconcile
-	// if needed.
-	if !mwUpdated && !amwUpdated {
-		controllerContext.Queue().AddAfter(manifestWorkName, requeueTime)
-	}
+	logger.V(2).Info("Requeue manifestwork", "requeue time", requeueTime)
+	controllerContext.Queue().AddAfter(manifestWorkName, requeueTime)
 
 	return nil
 }
@@ -214,4 +228,42 @@ func (m *ManifestWorkController) applyAppliedManifestWork(ctx context.Context, w
 
 	_, err = m.appliedManifestWorkPatcher.PatchSpec(ctx, appliedManifestWork, requiredAppliedWork.Spec, appliedManifestWork.Spec)
 	return appliedManifestWork, err
+}
+
+func onAddFunc(queue workqueue.TypedRateLimitingInterface[string]) func(obj interface{}) {
+	return func(obj interface{}) {
+		accessor, err := meta.Accessor(obj)
+		if err != nil {
+			utilruntime.HandleError(err)
+			return
+		}
+		if commonhelper.HasFinalizer(accessor.GetFinalizers(), workapiv1.ManifestWorkFinalizer) {
+			queue.Add(accessor.GetName())
+		}
+	}
+}
+
+func onUpdateFunc(queue workqueue.TypedRateLimitingInterface[string]) func(oldObj, newObj interface{}) {
+	return func(oldObj, newObj interface{}) {
+		newWork, ok := newObj.(*workapiv1.ManifestWork)
+		if !ok {
+			return
+		}
+		oldWork, ok := oldObj.(*workapiv1.ManifestWork)
+		if !ok {
+			return
+		}
+		// enqueue when finalizer is added, spec or label is changed.
+		if !commonhelper.HasFinalizer(newWork.GetFinalizers(), workapiv1.ManifestWorkFinalizer) {
+			return
+		}
+		if !commonhelper.HasFinalizer(oldWork.GetFinalizers(), workapiv1.ManifestWorkFinalizer) {
+			queue.Add(newWork.GetName())
+			return
+		}
+		if !apiequality.Semantic.DeepEqual(newWork.Spec, oldWork.Spec) ||
+			!apiequality.Semantic.DeepEqual(newWork.Labels, oldWork.Labels) {
+			queue.Add(newWork.GetName())
+		}
+	}
 }
