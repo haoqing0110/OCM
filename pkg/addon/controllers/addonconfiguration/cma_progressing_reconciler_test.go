@@ -95,7 +95,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonProgressing {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions[0].Reason)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "0/2 progressing..., 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 2 selected, 0 effective. Status: 0 progressing, 0 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions[0].Message)
 				}
 			},
@@ -202,7 +202,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonProgressing {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions[0].Reason)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "1/2 progressing..., 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 2 selected, 1 effective. Status: 1 progressing, 0 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions[0].Message)
 				}
 			},
@@ -303,7 +303,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonCompleted {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "1/1 completed with no errors, 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 1 selected, 1 effective. Status: 1 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
 			},
@@ -397,7 +397,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonProgressing {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "1/2 progressing..., 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 2 selected, 1 effective. Status: 1 progressing, 0 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
 			},
@@ -506,7 +506,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonCompleted {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "1/1 completed with no errors, 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 1 selected, 1 effective. Status: 1 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
 			},
@@ -592,7 +592,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonProgressing {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "0/1 progressing..., 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 1 selected, 1 effective. Status: 0 progressing, 0 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
 			},
@@ -667,7 +667,7 @@ func TestMgmtAddonProgressingReconcile(t *testing.T) {
 				if cma.Status.InstallProgressions[0].Conditions[0].Reason != addonv1alpha1.ProgressingReasonProgressing {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions)
 				}
-				if cma.Status.InstallProgressions[0].Conditions[0].Message != "1/2 progressing..., 0 failed 0 timeout." {
+				if cma.Status.InstallProgressions[0].Conditions[0].Message != "Clusters: 2 selected, 1 effective. Status: 1 progressing, 0 completed, 0 failed, 0 timeout." {
 					t.Errorf("InstallProgressions condition is not correct: %v", cma.Status.InstallProgressions[0].Conditions[0].Message)
 				}
 			},
