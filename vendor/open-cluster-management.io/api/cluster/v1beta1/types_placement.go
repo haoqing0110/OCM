@@ -163,7 +163,40 @@ type DecisionStrategy struct {
 	// groupStrategy defines strategies to divide selected clusters into decision groups.
 	// +optional
 	GroupStrategy GroupStrategy `json:"groupStrategy,omitempty"`
+
+	// updateStrategy defines how PlacementDecision objects should be updated when
+	// the set of selected clusters changes. This controls the update mechanism for the decision
+	// objects themselves, not how workloads are rolled out to clusters.
+	// +optional
+	UpdateStrategy UpdateStrategy `json:"updateStrategy,omitempty"`
 }
+
+// UpdateStrategy defines how PlacementDecision objects should be updated.
+type UpdateStrategy struct {
+	// type indicates the type of the update strategy. Default is "All".
+	// See UpdateStrategyType for detailed behavior of each type.
+	//
+	// +kubebuilder:validation:Enum=All;RollingUpdate
+	// +kubebuilder:default=All
+	// +optional
+	Type UpdateStrategyType `json:"type,omitempty"`
+}
+
+// UpdateStrategyType is a string representation of the update strategy type
+type UpdateStrategyType string
+
+const (
+	// UpdateStrategyTypeAll means update all PlacementDecisions immediately (current behavior).
+	// Clusters may temporarily disappear from all decisions when moving between decisions,
+	// which can cause consumers to incorrectly delete and recreate resources.
+	UpdateStrategyTypeAll UpdateStrategyType = "All"
+
+	// UpdateStrategyTypeRollingUpdate means use a rolling update strategy similar to Deployment's RollingUpdate.
+	// Phase 1 (Surge): Merge old and new clusters (temporary over-limit allowed)
+	// Phase 2 (Finalize): Update to final state and delete obsolete PlacementDecisions
+	// This ensures clusters remain visible in at least one decision throughout the update.
+	UpdateStrategyTypeRollingUpdate UpdateStrategyType = "RollingUpdate"
+)
 
 // ClusterPredicate represents a predicate to select ManagedClusters.
 type ClusterPredicate struct {
