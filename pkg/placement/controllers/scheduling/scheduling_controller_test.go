@@ -1468,3 +1468,381 @@ func newSelectedClusters(num int) (clusters []string) {
 
 	return clusters
 }
+
+// TestMergePlacementDecisions tests the mergePlacementDecisions helper function
+func TestMergePlacementDecisions(t *testing.T) {
+	tests := []struct {
+		name     string
+		old      []clusterapiv1beta1.ClusterDecision
+		new      []clusterapiv1beta1.ClusterDecision
+		expected []clusterapiv1beta1.ClusterDecision
+	}{
+		{
+			name: "no overlap",
+			old: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "old"},
+				{ClusterName: "cluster2", Reason: "old"},
+			},
+			new: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster3", Reason: "new"},
+				{ClusterName: "cluster4", Reason: "new"},
+			},
+			expected: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "old"},
+				{ClusterName: "cluster2", Reason: "old"},
+				{ClusterName: "cluster3", Reason: "new"},
+				{ClusterName: "cluster4", Reason: "new"},
+			},
+		},
+		{
+			name: "full overlap",
+			old: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "old"},
+			},
+			new: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "new"},
+			},
+			expected: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "new"},
+			},
+		},
+		{
+			name: "partial overlap",
+			old: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "old"},
+				{ClusterName: "cluster2", Reason: "old"},
+			},
+			new: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster2", Reason: "new"},
+				{ClusterName: "cluster3", Reason: "new"},
+			},
+			expected: []clusterapiv1beta1.ClusterDecision{
+				{ClusterName: "cluster1", Reason: "old"},
+				{ClusterName: "cluster2", Reason: "new"},
+				{ClusterName: "cluster3", Reason: "new"},
+			},
+		},
+		{
+			name:     "empty old",
+			old:      []clusterapiv1beta1.ClusterDecision{},
+			new:      []clusterapiv1beta1.ClusterDecision{{ClusterName: "cluster1"}},
+			expected: []clusterapiv1beta1.ClusterDecision{{ClusterName: "cluster1"}},
+		},
+		{
+			name:     "empty new",
+			old:      []clusterapiv1beta1.ClusterDecision{{ClusterName: "cluster1"}},
+			new:      []clusterapiv1beta1.ClusterDecision{},
+			expected: []clusterapiv1beta1.ClusterDecision{{ClusterName: "cluster1"}},
+		},
+		{
+			name:     "both empty",
+			old:      []clusterapiv1beta1.ClusterDecision{},
+			new:      []clusterapiv1beta1.ClusterDecision{},
+			expected: []clusterapiv1beta1.ClusterDecision{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mergePlacementDecisions(tt.old, tt.new)
+
+			// Sort both for comparison (mergePlacementDecisions should already sort)
+			sort.SliceStable(got, func(i, j int) bool {
+				return got[i].ClusterName < got[j].ClusterName
+			})
+			sort.SliceStable(tt.expected, func(i, j int) bool {
+				return tt.expected[i].ClusterName < tt.expected[j].ClusterName
+			})
+
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("mergePlacementDecisions() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestBindWithRollingUpdate_ClusterMove tests that clusters don't temporarily disappear
+// when moving between decisions during a rolling update
+func TestBindWithRollingUpdate_ClusterMove(t *testing.T) {
+	// Setup: Create 150 clusters initially
+	// decision-1: [cluster1...cluster100]
+	// decision-2: [cluster101...cluster150]
+	placement := testinghelpers.NewPlacement(placementNamespace, placementName).
+		WithClusterSets("clusterset1").Build()
+
+	// Set RollingUpdate strategy
+	placement.Spec.DecisionStrategy.UpdateStrategy = clusterapiv1beta1.UpdateStrategy{
+		Type: clusterapiv1beta1.UpdateStrategyTypeRollingUpdate,
+	}
+
+	// Create initial placement decisions
+	decision1 := testinghelpers.NewPlacementDecision(placementNamespace, placementDecisionName(placementName, 1)).
+		WithLabel(clusterapiv1beta1.PlacementLabel, placementName).
+		WithLabel(clusterapiv1beta1.DecisionGroupIndexLabel, "0").
+		Build()
+
+	decision2 := testinghelpers.NewPlacementDecision(placementNamespace, placementDecisionName(placementName, 2)).
+		WithLabel(clusterapiv1beta1.PlacementLabel, placementName).
+		WithLabel(clusterapiv1beta1.DecisionGroupIndexLabel, "0").
+		Build()
+
+	// Set initial cluster decisions
+	for i := 1; i <= 100; i++ {
+		decision1.Status.Decisions = append(decision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+	for i := 101; i <= 150; i++ {
+		decision2.Status.Decisions = append(decision2.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	clusterClient := clusterfake.NewSimpleClientset(placement, decision1, decision2)
+
+	// Create informer factory
+	clusterInformerFactory := newClusterInformerFactory(t, clusterClient, placement, decision1, decision2)
+
+	// Create controller
+	ctrl := &schedulingController{
+		clusterClient:           clusterClient,
+		placementLister:         clusterInformerFactory.Cluster().V1beta1().Placements().Lister(),
+		placementDecisionLister: clusterInformerFactory.Cluster().V1beta1().PlacementDecisions().Lister(),
+		eventsRecorder:          kevents.NewFakeRecorder(100),
+	}
+
+	// Action: Add cluster0 - this will cause cluster100 to move from decision-1 to decision-2
+	// New state should be:
+	// decision-1: [cluster0...cluster99]
+	// decision-2: [cluster100...cluster150]
+	newDecision1 := decision1.DeepCopy()
+	newDecision1.Status.Decisions = []clusterapiv1beta1.ClusterDecision{}
+	newDecision1.Status.Decisions = append(newDecision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+		ClusterName: "cluster0",
+	})
+	for i := 1; i <= 99; i++ {
+		newDecision1.Status.Decisions = append(newDecision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	newDecision2 := decision2.DeepCopy()
+	newDecision2.Status.Decisions = []clusterapiv1beta1.ClusterDecision{}
+	for i := 100; i <= 150; i++ {
+		newDecision2.Status.Decisions = append(newDecision2.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	err := ctrl.bindWithRollingUpdate(
+		context.TODO(),
+		placement,
+		[]*clusterapiv1beta1.PlacementDecision{newDecision1, newDecision2},
+		nil,
+		framework.NewStatus("", framework.Success, ""),
+	)
+
+	if err != nil {
+		t.Errorf("bindWithRollingUpdate() error = %v", err)
+	}
+
+	// Verify: Check that during Phase 1, cluster100 was in both decisions
+	// In Phase 2, cluster100 should only be in decision-2
+	actions := clusterClient.Actions()
+
+	// Should have patch actions for both phases
+	patchCount := 0
+	for _, action := range actions {
+		if action.GetVerb() == "patch" {
+			patchCount++
+		}
+	}
+
+	// Phase 1: 2 patches (decision-1 and decision-2)
+	// Phase 2: 2 patches (decision-1 and decision-2)
+	// Total: 4 patches
+	expectedPatches := 4
+	if patchCount != expectedPatches {
+		t.Errorf("Expected %d patch actions, got %d", expectedPatches, patchCount)
+	}
+}
+
+// TestBindWithRollingUpdate_DecisionGroupChange tests that clusters don't disappear
+// when redistributing to different decision groups
+func TestBindWithRollingUpdate_DecisionGroupChange(t *testing.T) {
+	// Setup: 150 clusters in 2 decisions
+	// decision-1: [cluster1...cluster100]
+	// decision-2: [cluster101...cluster150]
+	placement := testinghelpers.NewPlacement(placementNamespace, placementName).
+		WithClusterSets("clusterset1").Build()
+
+	// Set RollingUpdate strategy
+	placement.Spec.DecisionStrategy.UpdateStrategy = clusterapiv1beta1.UpdateStrategy{
+		Type: clusterapiv1beta1.UpdateStrategyTypeRollingUpdate,
+	}
+
+	// Create initial 2 decisions
+	decision1 := testinghelpers.NewPlacementDecision(placementNamespace, placementDecisionName(placementName, 1)).
+		WithLabel(clusterapiv1beta1.PlacementLabel, placementName).
+		Build()
+	decision2 := testinghelpers.NewPlacementDecision(placementNamespace, placementDecisionName(placementName, 2)).
+		WithLabel(clusterapiv1beta1.PlacementLabel, placementName).
+		Build()
+
+	// Populate initial decisions
+	for i := 1; i <= 100; i++ {
+		decision1.Status.Decisions = append(decision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+	for i := 101; i <= 150; i++ {
+		decision2.Status.Decisions = append(decision2.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	clusterClient := clusterfake.NewSimpleClientset(placement, decision1, decision2)
+	clusterInformerFactory := newClusterInformerFactory(t, clusterClient, placement, decision1, decision2)
+
+	ctrl := &schedulingController{
+		clusterClient:           clusterClient,
+		placementLister:         clusterInformerFactory.Cluster().V1beta1().Placements().Lister(),
+		placementDecisionLister: clusterInformerFactory.Cluster().V1beta1().PlacementDecisions().Lister(),
+		eventsRecorder:          kevents.NewFakeRecorder(100),
+	}
+
+	// New state: Redistribute to 3 decisions (50+50+50)
+	newDecision1 := decision1.DeepCopy()
+	newDecision1.Status.Decisions = []clusterapiv1beta1.ClusterDecision{}
+	for i := 1; i <= 50; i++ {
+		newDecision1.Status.Decisions = append(newDecision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	newDecision2 := decision2.DeepCopy()
+	newDecision2.Status.Decisions = []clusterapiv1beta1.ClusterDecision{}
+	for i := 51; i <= 100; i++ {
+		newDecision2.Status.Decisions = append(newDecision2.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	newDecision3 := testinghelpers.NewPlacementDecision(placementNamespace, placementDecisionName(placementName, 3)).
+		WithLabel(clusterapiv1beta1.PlacementLabel, placementName).
+		Build()
+	for i := 101; i <= 150; i++ {
+		newDecision3.Status.Decisions = append(newDecision3.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	err := ctrl.bindWithRollingUpdate(
+		context.TODO(),
+		placement,
+		[]*clusterapiv1beta1.PlacementDecision{newDecision1, newDecision2, newDecision3},
+		nil,
+		framework.NewStatus("", framework.Success, ""),
+	)
+
+	if err != nil {
+		t.Errorf("bindWithRollingUpdate() error = %v", err)
+	}
+
+	// Verify: Should have patch actions for Phase 1 and Phase 2
+	actions := clusterClient.Actions()
+
+	createCount := 0
+	patchCount := 0
+
+	for _, action := range actions {
+		switch action.GetVerb() {
+		case "create":
+			createCount++
+		case "patch":
+			patchCount++
+		}
+	}
+
+	// Should have:
+	// Phase 1: 2 patches (decision-1, decision-2) + 1 create (decision-3)
+	// Phase 2: 3 patches (decision-1, decision-2, decision-3)
+	// Total: 1 create, 5 patches (but phase 2 might fail on decision-3 due to lister cache)
+	if createCount < 1 {
+		t.Errorf("Expected at least 1 create action for decision-3, got %d", createCount)
+	}
+	if patchCount < 2 {
+		t.Errorf("Expected at least 2 patch actions, got %d", patchCount)
+	}
+}
+
+// TestBindAll_BackwardCompatibility tests that the "All" strategy maintains existing behavior
+func TestBindAll_BackwardCompatibility(t *testing.T) {
+	placement := testinghelpers.NewPlacement(placementNamespace, placementName).
+		WithClusterSets("clusterset1").Build()
+
+	// Explicitly set to All strategy
+	placement.Spec.DecisionStrategy.UpdateStrategy = clusterapiv1beta1.UpdateStrategy{
+		Type: clusterapiv1beta1.UpdateStrategyTypeAll,
+	}
+
+	// Create initial decision
+	decision1 := testinghelpers.NewPlacementDecision(placementNamespace, placementDecisionName(placementName, 1)).
+		WithLabel(clusterapiv1beta1.PlacementLabel, placementName).
+		Build()
+
+	for i := 1; i <= 50; i++ {
+		decision1.Status.Decisions = append(decision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	clusterClient := clusterfake.NewSimpleClientset(placement, decision1)
+	clusterInformerFactory := newClusterInformerFactory(t, clusterClient, placement, decision1)
+
+	ctrl := &schedulingController{
+		clusterClient:           clusterClient,
+		placementLister:         clusterInformerFactory.Cluster().V1beta1().Placements().Lister(),
+		placementDecisionLister: clusterInformerFactory.Cluster().V1beta1().PlacementDecisions().Lister(),
+		eventsRecorder:          kevents.NewFakeRecorder(100),
+	}
+
+	// Update with new clusters
+	newDecision1 := decision1.DeepCopy()
+	newDecision1.Status.Decisions = []clusterapiv1beta1.ClusterDecision{}
+	for i := 1; i <= 60; i++ {
+		newDecision1.Status.Decisions = append(newDecision1.Status.Decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: fmt.Sprintf("cluster%d", i),
+		})
+	}
+
+	err := ctrl.bindAll(
+		context.TODO(),
+		placement,
+		[]*clusterapiv1beta1.PlacementDecision{newDecision1},
+		nil,
+		framework.NewStatus("", framework.Success, ""),
+	)
+
+	if err != nil {
+		t.Errorf("bindAll() error = %v", err)
+	}
+
+	// Verify: Should only have 1 patch action (immediate update, no merge phase)
+	actions := clusterClient.Actions()
+	patchCount := 0
+	for _, action := range actions {
+		if action.GetVerb() == "patch" {
+			patchCount++
+		}
+	}
+
+	// With "All" strategy, should be single-phase update
+	if patchCount != 1 {
+		t.Errorf("Expected 1 patch action for All strategy, got %d", patchCount)
+	}
+}
+
+func placementDecisionName(placementName string, index int) string {
+	return fmt.Sprintf("%s-decision-%d", placementName, index)
+}

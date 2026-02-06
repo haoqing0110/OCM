@@ -622,13 +622,36 @@ func (c *schedulingController) bind(
 	clusterScores PrioritizerScore,
 	status *framework.Status,
 ) error {
+	// Determine update strategy
+	updateStrategyType := clusterapiv1beta1.UpdateStrategyTypeAll
+	if placement.Spec.DecisionStrategy.UpdateStrategy.Type != "" {
+		updateStrategyType = placement.Spec.DecisionStrategy.UpdateStrategy.Type
+	}
+
+	// Route to appropriate implementation
+	switch updateStrategyType {
+	case clusterapiv1beta1.UpdateStrategyTypeRollingUpdate:
+		return c.bindWithRollingUpdate(ctx, placement, placementdecisions, clusterScores, status)
+	default:
+		return c.bindAll(ctx, placement, placementdecisions, clusterScores, status)
+	}
+}
+
+// bindAll implements the current "All" update strategy (immediate update)
+func (c *schedulingController) bindAll(
+	ctx context.Context,
+	placement *clusterapiv1beta1.Placement,
+	placementdecisions []*clusterapiv1beta1.PlacementDecision,
+	clusterScores PrioritizerScore,
+	status *framework.Status,
+) error {
 	var errs []error
 	placementDecisionNames := sets.NewString()
 
 	// create/update placement decisions
 	for _, pd := range placementdecisions {
 		placementDecisionNames.Insert(pd.Name)
-		err := c.createOrUpdatePlacementDecision(ctx, placement, pd, clusterScores, status)
+		err := c.createOrUpdatePlacementDecision(ctx, placement, pd, clusterScores, status, false)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -667,20 +690,164 @@ func (c *schedulingController) bind(
 	return errorhelpers.NewMultiLineAggregate(errs)
 }
 
+// bindWithRollingUpdate implements the RollingUpdate strategy with two phases:
+// Phase 1 (Surge): Merge old and new clusters to ensure clusters remain visible
+// Phase 2 (Finalize): Update to final state and delete obsolete decisions
+func (c *schedulingController) bindWithRollingUpdate(
+	ctx context.Context,
+	placement *clusterapiv1beta1.Placement,
+	newPlacementDecisions []*clusterapiv1beta1.PlacementDecision,
+	clusterScores PrioritizerScore,
+	status *framework.Status,
+) error {
+	// Get all existing PlacementDecisions for this Placement
+	requirement, err := labels.NewRequirement(clusterapiv1beta1.PlacementLabel, selection.Equals, []string{placement.Name})
+	if err != nil {
+		return err
+	}
+	labelSelector := labels.NewSelector().Add(*requirement)
+	existingPDs, err := c.placementDecisionLister.PlacementDecisions(placement.Namespace).List(labelSelector)
+	if err != nil {
+		return err
+	}
+
+	// Build map of existing decisions by name
+	existingPDMap := make(map[string]*clusterapiv1beta1.PlacementDecision)
+	for _, pd := range existingPDs {
+		existingPDMap[pd.Name] = pd
+	}
+
+	// Build map of new decisions by name
+	newPDMap := make(map[string]*clusterapiv1beta1.PlacementDecision)
+	for _, pd := range newPlacementDecisions {
+		newPDMap[pd.Name] = pd
+	}
+
+	// --- Phase 1: Surge (merge old and new clusters) ---
+	klog.V(4).Infof("RollingUpdate Phase 1 (Surge): merging old and new clusters for placement %s/%s",
+		placement.Namespace, placement.Name)
+
+	var phase1Errs []error
+	for _, newPD := range newPlacementDecisions {
+		existingPD, exists := existingPDMap[newPD.Name]
+		if !exists {
+			// New PlacementDecision - create it with new clusters
+			err := c.createOrUpdatePlacementDecision(ctx, placement, newPD, clusterScores, status, false)
+			if err != nil {
+				phase1Errs = append(phase1Errs, err)
+			}
+			continue
+		}
+
+		// Existing PlacementDecision - merge old and new clusters
+		mergedPD := newPD.DeepCopy()
+		mergedClusters := mergePlacementDecisions(existingPD.Status.Decisions, newPD.Status.Decisions)
+		mergedPD.Status.Decisions = mergedClusters
+
+		// Log if we exceed the normal limit during surge
+		if len(mergedClusters) > maxNumOfClusterDecisions {
+			klog.V(2).Infof("RollingUpdate Phase 1: PlacementDecision %s/%s temporarily has %d clusters (exceeds normal limit of %d)",
+				mergedPD.Namespace, mergedPD.Name, len(mergedClusters), maxNumOfClusterDecisions)
+		}
+
+		err := c.createOrUpdatePlacementDecision(ctx, placement, mergedPD, clusterScores, status, true)
+		if err != nil {
+			phase1Errs = append(phase1Errs, err)
+		}
+	}
+
+	if len(phase1Errs) > 0 {
+		return errorhelpers.NewMultiLineAggregate(phase1Errs)
+	}
+
+	// --- Phase 2: Finalize (set final state and delete obsolete decisions) ---
+	klog.V(4).Infof("RollingUpdate Phase 2 (Finalize): updating to final state for placement %s/%s",
+		placement.Namespace, placement.Name)
+
+	var phase2Errs []error
+	newPDNames := sets.NewString()
+
+	// Update to final state
+	for _, newPD := range newPlacementDecisions {
+		newPDNames.Insert(newPD.Name)
+		err := c.createOrUpdatePlacementDecision(ctx, placement, newPD, clusterScores, status, false)
+		if err != nil {
+			phase2Errs = append(phase2Errs, err)
+		}
+	}
+
+	// Delete obsolete PlacementDecisions
+	for _, existingPD := range existingPDs {
+		if newPDNames.Has(existingPD.Name) {
+			continue
+		}
+		err := c.clusterClient.ClusterV1beta1().PlacementDecisions(
+			existingPD.Namespace).Delete(ctx, existingPD.Name, metav1.DeleteOptions{})
+		if errors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			phase2Errs = append(phase2Errs, err)
+		}
+		c.eventsRecorder.Eventf(
+			placement, existingPD, corev1.EventTypeNormal,
+			"DecisionDelete", "DecisionDeleted",
+			"Decision %s is deleted with placement %s in namespace %s", existingPD.Name, placement.Name, placement.Namespace)
+	}
+
+	return errorhelpers.NewMultiLineAggregate(phase2Errs)
+}
+
+// mergePlacementDecisions merges two lists of ClusterDecisions, removing duplicates.
+// New clusters override old clusters with the same name.
+func mergePlacementDecisions(old, new []clusterapiv1beta1.ClusterDecision) []clusterapiv1beta1.ClusterDecision {
+	clusterMap := make(map[string]clusterapiv1beta1.ClusterDecision)
+
+	// Add old clusters
+	for _, cluster := range old {
+		clusterMap[cluster.ClusterName] = cluster
+	}
+
+	// Add new clusters (overwrites duplicates with new data)
+	for _, cluster := range new {
+		clusterMap[cluster.ClusterName] = cluster
+	}
+
+	// Convert back to slice
+	merged := make([]clusterapiv1beta1.ClusterDecision, 0, len(clusterMap))
+	for _, cluster := range clusterMap {
+		merged = append(merged, cluster)
+	}
+
+	// Sort by cluster name for determinism
+	sort.SliceStable(merged, func(i, j int) bool {
+		return merged[i].ClusterName < merged[j].ClusterName
+	})
+
+	return merged
+}
+
 // createOrUpdatePlacementDecision creates a new PlacementDecision if it does not exist and
-// then updates the status with the given ClusterDecision slice if necessary
+// then updates the status with the given ClusterDecision slice if necessary.
+// allowOverLimit allows temporarily exceeding maxNumOfClusterDecisions during RollingUpdate surge phase.
 func (c *schedulingController) createOrUpdatePlacementDecision(
 	ctx context.Context,
 	placement *clusterapiv1beta1.Placement,
 	placementDecision *clusterapiv1beta1.PlacementDecision,
 	clusterScores PrioritizerScore,
 	status *framework.Status,
+	allowOverLimit bool,
 ) error {
 	placementDecisionName := placementDecision.Name
 	clusterDecisions := placementDecision.Status.Decisions
 
 	if len(clusterDecisions) > maxNumOfClusterDecisions {
-		return fmt.Errorf("the number of clusterdecisions %q exceeds the max limitation %q", len(clusterDecisions), maxNumOfClusterDecisions)
+		if !allowOverLimit {
+			return fmt.Errorf("the number of clusterdecisions %q exceeds the max limitation %q", len(clusterDecisions), maxNumOfClusterDecisions)
+		}
+		// Log as info during surge phase
+		klog.V(2).Infof("PlacementDecision %s/%s temporarily has %d clusters during RollingUpdate surge (normal limit: %d)",
+			placementDecision.Namespace, placementDecisionName, len(clusterDecisions), maxNumOfClusterDecisions)
 	}
 
 	existPlacementDecision, err := c.placementDecisionLister.PlacementDecisions(placementDecision.Namespace).Get(placementDecisionName)
@@ -690,12 +857,23 @@ func (c *schedulingController) createOrUpdatePlacementDecision(
 		existPlacementDecision, err = c.clusterClient.ClusterV1beta1().PlacementDecisions(
 			placement.Namespace).Create(ctx, placementDecision, metav1.CreateOptions{})
 		if err != nil {
-			return err
+			// If the decision was created between the lister check and now (e.g., in Phase 1 of RollingUpdate),
+			// retrieve it instead of failing
+			if errors.IsAlreadyExists(err) {
+				existPlacementDecision, err = c.clusterClient.ClusterV1beta1().PlacementDecisions(
+					placementDecision.Namespace).Get(ctx, placementDecisionName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		} else {
+			c.eventsRecorder.Eventf(
+				placement, existPlacementDecision, corev1.EventTypeNormal,
+				"DecisionCreate", "DecisionCreated",
+				"Decision %s is created with placement %s in namespace %s", existPlacementDecision.Name, placement.Name, placement.Namespace)
 		}
-		c.eventsRecorder.Eventf(
-			placement, existPlacementDecision, corev1.EventTypeNormal,
-			"DecisionCreate", "DecisionCreated",
-			"Decision %s is created with placement %s in namespace %s", existPlacementDecision.Name, placement.Name, placement.Namespace)
 	case err != nil:
 		return err
 	}
