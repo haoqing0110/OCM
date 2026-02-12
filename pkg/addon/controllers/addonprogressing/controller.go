@@ -301,7 +301,10 @@ func setAddOnProgressingAndLastApplied(reason string, message string, addon *add
 	case addonapiv1alpha1.ProgressingReasonCompleted:
 		condition.Status = metav1.ConditionFalse
 		for i, configReference := range addon.Status.ConfigReferences {
-			addon.Status.ConfigReferences[i].LastAppliedConfig = configReference.DesiredConfig.DeepCopy()
+			// skip config references without desired config
+			if configReference.DesiredConfig != nil {
+				addon.Status.ConfigReferences[i].LastAppliedConfig = configReference.DesiredConfig.DeepCopy()
+			}
 		}
 		condition.Message = "completed with no errors."
 	case addonapiv1alpha1.ProgressingReasonFailed:
