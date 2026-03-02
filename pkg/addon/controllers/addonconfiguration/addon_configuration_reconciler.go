@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned"
@@ -95,6 +96,15 @@ func (d *managedClusterAddonConfigurationReconciler) mergeAddonConfig(
 		if _, ok := mergedConfigs[gr]; !ok {
 			mergedConfigs[gr] = []addonv1alpha1.ConfigReference{}
 		}
+
+		// skip config references without desired config
+		if configRef.DesiredConfig == nil {
+			klog.Warningf("ManagedClusterAddon %s/%s has configReference without desiredConfig, "+
+				"skipping during merge",
+				mca.Namespace, mca.Name)
+			continue
+		}
+
 		if _, ok := desiredConfigMap.containsConfig(gr, configRef.DesiredConfig.ConfigReferent); ok {
 			mergedConfigs[gr] = append(mergedConfigs[gr], configRef)
 		}
