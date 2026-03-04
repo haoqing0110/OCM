@@ -17,6 +17,7 @@ import (
 	clusterlisterv1beta1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
+	"open-cluster-management.io/ocm/pkg/placement/plugins/spread"
 
 	"open-cluster-management.io/ocm/pkg/placement/controllers/framework"
 	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
@@ -32,6 +33,7 @@ import (
 const (
 	PrioritizerBalance                   string = "Balance"
 	PrioritizerSteady                    string = "Steady"
+	PrioritizerSpread                    string = "Spread"
 	PrioritizerResourceAllocatableCPU    string = "ResourceAllocatableCPU"
 	PrioritizerResourceAllocatableMemory string = "ResourceAllocatableMemory"
 )
@@ -279,26 +281,44 @@ func (s *pluginScheduler) Schedule(
 
 	}
 
-	// 4. Sort clusters by score, if score is equal, sort by name
-	sort.SliceStable(filtered, func(i, j int) bool {
-		if scoreSum[filtered[i].Name] == scoreSum[filtered[j].Name] {
-			return filtered[i].Name < filtered[j].Name
-		} else {
-			return scoreSum[filtered[i].Name] > scoreSum[filtered[j].Name]
-		}
-	})
-
-	results.feasibleClusters = filtered
-	results.scoreSum = scoreSum
-
-	// select clusters and generate cluster decisions
-	decisions := selectClusters(placement, filtered)
-	scheduled, unscheduled := len(decisions), 0
-	if placement.Spec.NumberOfClusters != nil {
-		unscheduled = int(*placement.Spec.NumberOfClusters) - scheduled
+	// temporary workaround for the spread plugin
+	spreadCoordinate := clusterapiv1beta1.ScoreCoordinate{
+		Type:    clusterapiv1beta1.ScoreCoordinateTypeBuiltIn,
+		BuiltIn: PrioritizerSpread,
 	}
-	results.scheduledDecisions = decisions
-	results.unscheduledDecisions = unscheduled
+	if weights[spreadCoordinate] != 0 {
+		s := spread.New(weights[spreadCoordinate])
+		result, status := s.Select(ctx, placement, scoreSum, filtered)
+		switch {
+		case status.IsError():
+			return results, status
+		case status.Code() == framework.Warning:
+			klog.Warningf("%v", status.Message())
+			finalStatus = status
+		}
+		results.scheduledDecisions = selectClusters(placement, result.Selected)
+		results.unscheduledDecisions = 0
+	} else {
+		// 4. Sort clusters by score, if score is equal, sort by name
+		sort.SliceStable(filtered, func(i, j int) bool {
+			if scoreSum[filtered[i].Name] == scoreSum[filtered[j].Name] {
+				return filtered[i].Name < filtered[j].Name
+			} else {
+				return scoreSum[filtered[i].Name] > scoreSum[filtered[j].Name]
+			}
+		})
+		results.feasibleClusters = filtered
+		results.scoreSum = scoreSum
+
+		// select clusters and generate cluster decisions
+		decisions := selectClusters(placement, filtered)
+		scheduled, unscheduled := len(decisions), 0
+		if placement.Spec.NumberOfClusters != nil {
+			unscheduled = int(*placement.Spec.NumberOfClusters) - scheduled
+		}
+		results.scheduledDecisions = decisions
+		results.unscheduledDecisions = unscheduled
+	}
 
 	// set placement requeue time
 	for _, f := range s.filters {
@@ -401,6 +421,8 @@ func getPrioritizers(weights map[clusterapiv1beta1.ScoreCoordinate]int32, handle
 				result[k] = steady.New(handle)
 			case k.BuiltIn == PrioritizerResourceAllocatableCPU || k.BuiltIn == PrioritizerResourceAllocatableMemory:
 				result[k] = resource.NewResourcePrioritizerBuilder(handle).WithPrioritizerName(k.BuiltIn).Build()
+			case k.BuiltIn == PrioritizerSpread:
+				//
 			default:
 				msg := fmt.Sprintf("incorrect builtin prioritizer: %s", k.BuiltIn)
 				return nil, framework.NewStatus("", framework.Misconfigured, msg)
