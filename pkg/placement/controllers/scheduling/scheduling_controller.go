@@ -435,7 +435,11 @@ func newSatisfiedCondition(
 	case numOfFeasibleClusters == 0:
 		condition.Status = metav1.ConditionFalse
 		condition.Reason = "NoManagedClusterMatched"
-		condition.Message = "No ManagedCluster matches any of the cluster predicate"
+		if msg := status.Message(); msg == "" {
+			condition.Message = "No ManagedCluster matches any of the cluster predicate"
+		} else {
+			condition.Message = msg
+		}
 	case numOfUnscheduledDecisions == 0:
 		condition.Status = metav1.ConditionTrue
 		condition.Reason = "AllDecisionsScheduled"
