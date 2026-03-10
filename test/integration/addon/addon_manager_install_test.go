@@ -11,7 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -19,14 +19,14 @@ import (
 
 var _ = ginkgo.Describe("Addon install", func() {
 	suffix := rand.String(5)
-	var cma *addonapiv1alpha1.ClusterManagementAddOn
+	var cma *addonapiv1beta1.ClusterManagementAddOn
 	var placementNamespace string
 	var clusterNames []string
 
 	ginkgo.BeforeEach(func() {
 		// Create clustermanagement addon
 		cma = newClusterManagementAddon(fmt.Sprintf("test-%s", suffix))
-		_, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
+		_, err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		assertClusterManagementAddOnAnnotations(cma.Name)
@@ -57,7 +57,7 @@ var _ = ginkgo.Describe("Addon install", func() {
 	})
 
 	ginkgo.AfterEach(func() {
-		err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Delete(context.Background(), cma.Name, metav1.DeleteOptions{})
+		err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Delete(context.Background(), cma.Name, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		err = hubKubeClient.CoreV1().Namespaces().Delete(context.Background(), placementNamespace, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
@@ -95,14 +95,14 @@ var _ = ginkgo.Describe("Addon install", func() {
 			_, err = hubClusterClient.ClusterV1beta1().PlacementDecisions(placementNamespace).UpdateStatus(context.Background(), decision, metav1.UpdateOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-			clusterManagementAddon, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Get(context.Background(), cma.Name, metav1.GetOptions{})
+			clusterManagementAddon, err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Get(context.Background(), cma.Name, metav1.GetOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-			clusterManagementAddon.Spec.InstallStrategy = addonapiv1alpha1.InstallStrategy{
-				Type: addonapiv1alpha1.AddonInstallStrategyPlacements,
-				Placements: []addonapiv1alpha1.PlacementStrategy{
+			clusterManagementAddon.Spec.InstallStrategy = addonapiv1beta1.InstallStrategy{
+				Type: addonapiv1beta1.AddonInstallStrategyPlacements,
+				Placements: []addonapiv1beta1.PlacementStrategy{
 					{
-						PlacementRef: addonapiv1alpha1.PlacementRef{Name: "test-placement", Namespace: placementNamespace},
+						PlacementRef: addonapiv1beta1.PlacementRef{Name: "test-placement", Namespace: placementNamespace},
 						RolloutStrategy: clusterv1alpha1.RolloutStrategy{
 							Type: clusterv1alpha1.All,
 						},
@@ -110,15 +110,15 @@ var _ = ginkgo.Describe("Addon install", func() {
 				},
 			}
 
-			_, err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Update(context.Background(), clusterManagementAddon, metav1.UpdateOptions{})
+			_, err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Update(context.Background(), clusterManagementAddon, metav1.UpdateOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 			gomega.Eventually(func() error {
-				_, err := hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[0]).Get(context.Background(), cma.Name, metav1.GetOptions{})
+				_, err := hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[0]).Get(context.Background(), cma.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[1]).Get(context.Background(), cma.Name, metav1.GetOptions{})
+				_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[1]).Get(context.Background(), cma.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -137,16 +137,16 @@ var _ = ginkgo.Describe("Addon install", func() {
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 			gomega.Eventually(func() error {
-				_, err := hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[1]).Get(context.Background(), cma.Name, metav1.GetOptions{})
+				_, err := hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[1]).Get(context.Background(), cma.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[2]).Get(context.Background(), cma.Name, metav1.GetOptions{})
+				_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[2]).Get(context.Background(), cma.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 
-				_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[0]).Get(context.Background(), cma.Name, metav1.GetOptions{})
+				_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[0]).Get(context.Background(), cma.Name, metav1.GetOptions{})
 				if !errors.IsNotFound(err) {
 					return fmt.Errorf("addon in cluster %s should be removed", clusterNames[0])
 				}
@@ -154,10 +154,10 @@ var _ = ginkgo.Describe("Addon install", func() {
 			}, eventuallyTimeout, eventuallyInterval).ShouldNot(gomega.HaveOccurred())
 
 			// delete an addon and ensure it is recreated.
-			err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[1]).Delete(context.Background(), cma.Name, metav1.DeleteOptions{})
+			err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[1]).Delete(context.Background(), cma.Name, metav1.DeleteOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			gomega.Eventually(func() error {
-				_, err := hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[1]).Get(context.Background(), cma.Name, metav1.GetOptions{})
+				_, err := hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[1]).Get(context.Background(), cma.Name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}

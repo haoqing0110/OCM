@@ -12,8 +12,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
-	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
+	addonv1beta1client "open-cluster-management.io/api/client/addon/clientset/versioned"
 	clusterlisterv1beta1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/factory"
@@ -22,7 +22,7 @@ import (
 )
 
 type managedClusterAddonInstallReconciler struct {
-	addonClient                addonv1alpha1client.Interface
+	addonClient                addonv1beta1client.Interface
 	managedClusterAddonIndexer cache.Indexer
 	placementLister            clusterlisterv1beta1.PlacementLister
 	placementDecisionLister    clusterlisterv1beta1.PlacementDecisionLister
@@ -30,7 +30,7 @@ type managedClusterAddonInstallReconciler struct {
 }
 
 func (d *managedClusterAddonInstallReconciler) reconcile(
-	ctx context.Context, cma *addonv1alpha1.ClusterManagementAddOn) (*addonv1alpha1.ClusterManagementAddOn, reconcileState, error) {
+	ctx context.Context, cma *addonv1beta1.ClusterManagementAddOn) (*addonv1beta1.ClusterManagementAddOn, reconcileState, error) {
 	logger := klog.FromContext(ctx)
 	// skip apply install strategy for self-managed addon
 	// this is to avoid conflict when addon also define WithInstallStrategy()
@@ -39,7 +39,7 @@ func (d *managedClusterAddonInstallReconciler) reconcile(
 		return cma, reconcileContinue, nil
 	}
 
-	if cma.Spec.InstallStrategy.Type == "" || cma.Spec.InstallStrategy.Type == addonv1alpha1.AddonInstallStrategyManual {
+	if cma.Spec.InstallStrategy.Type == "" || cma.Spec.InstallStrategy.Type == addonv1beta1.AddonInstallStrategyManual {
 		return cma, reconcileContinue, nil
 	}
 
@@ -50,7 +50,7 @@ func (d *managedClusterAddonInstallReconciler) reconcile(
 
 	existingDeployed := sets.Set[string]{}
 	for _, addonObject := range addons {
-		addon := addonObject.(*addonv1alpha1.ManagedClusterAddOn)
+		addon := addonObject.(*addonv1beta1.ManagedClusterAddOn)
 		existingDeployed.Insert(addon.Namespace)
 	}
 
@@ -60,8 +60,8 @@ func (d *managedClusterAddonInstallReconciler) reconcile(
 	}
 
 	owner := metav1.NewControllerRef(cma, schema.GroupVersionKind{
-		Group:   addonv1alpha1.GroupName,
-		Version: addonv1alpha1.GroupVersion.Version,
+		Group:   addonv1beta1.GroupName,
+		Version: addonv1beta1.GroupVersion.Version,
 		Kind:    "ClusterManagementAddOn",
 	})
 	toAdd := requiredDeployed.Difference(existingDeployed)
@@ -69,13 +69,13 @@ func (d *managedClusterAddonInstallReconciler) reconcile(
 
 	var errs []error
 	for cluster := range toAdd {
-		_, err := d.addonClient.AddonV1alpha1().ManagedClusterAddOns(cluster).Create(ctx, &addonv1alpha1.ManagedClusterAddOn{
+		_, err := d.addonClient.AddonV1beta1().ManagedClusterAddOns(cluster).Create(ctx, &addonv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            cma.Name,
 				Namespace:       cluster,
 				OwnerReferences: []metav1.OwnerReference{*owner},
 			},
-			Spec: addonv1alpha1.ManagedClusterAddOnSpec{},
+			Spec: addonv1beta1.ManagedClusterAddOnSpec{},
 		}, metav1.CreateOptions{})
 
 		if err != nil && !errors.IsAlreadyExists(err) {
@@ -84,7 +84,7 @@ func (d *managedClusterAddonInstallReconciler) reconcile(
 	}
 
 	for cluster := range toRemove {
-		err := d.addonClient.AddonV1alpha1().ManagedClusterAddOns(cluster).Delete(ctx, cma.Name, metav1.DeleteOptions{})
+		err := d.addonClient.AddonV1beta1().ManagedClusterAddOns(cluster).Delete(ctx, cma.Name, metav1.DeleteOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			errs = append(errs, err)
 		}
@@ -96,7 +96,7 @@ func (d *managedClusterAddonInstallReconciler) reconcile(
 func (d *managedClusterAddonInstallReconciler) getAllDecisions(
 	logger klog.Logger,
 	addonName string,
-	placements []addonv1alpha1.PlacementStrategy) (sets.Set[string], error) {
+	placements []addonv1beta1.PlacementStrategy) (sets.Set[string], error) {
 	var errs []error
 	required := sets.Set[string]{}
 	for _, strategy := range placements {

@@ -18,8 +18,8 @@ import (
 
 	"open-cluster-management.io/addon-framework/pkg/addonmanager"
 	"open-cluster-management.io/addon-framework/pkg/agent"
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
-	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
+	addonv1beta1client "open-cluster-management.io/api/client/addon/clientset/versioned"
 	clusterv1client "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -35,14 +35,14 @@ const (
 
 var addOnDeploymentConfigGVR = schema.GroupVersionResource{
 	Group:    "addon.open-cluster-management.io",
-	Version:  "v1alpha1",
+	Version:  "v1beta1",
 	Resource: "addondeploymentconfigs",
 }
 
 var testEnv *envtest.Environment
 var hubWorkClient workclientset.Interface
 var hubClusterClient clusterv1client.Interface
-var hubAddonClient addonv1alpha1client.Interface
+var hubAddonClient addonv1beta1client.Interface
 var hubKubeClient kubernetes.Interface
 var testAddonImpl *testAddon
 var testAddOnConfigsImpl *testAddon
@@ -72,6 +72,11 @@ var _ = ginkgo.BeforeSuite(func() {
 			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "cluster", "v1"),
 			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "cluster", "v1beta1"),
 			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "addon", "v1alpha1"),
+			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "addon", "v1alpha1"),
+			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "addon", "v1beta1", "0000_00_addon.open-cluster-management.io_clustermanagementaddons.crd.yaml"),
+			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "addon", "v1beta1", "0000_01_addon.open-cluster-management.io_managedclusteraddons.crd.yaml"),
+			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "addon", "v1beta1", "0000_02_addon.open-cluster-management.io_addondeploymentconfigs.crd.yaml"),
+			filepath.Join(".", "vendor", "open-cluster-management.io", "api", "addon", "v1alpha1", "0000_03_addon.open-cluster-management.io_addontemplates.crd.yaml"),
 		},
 	}
 
@@ -83,7 +88,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	hubClusterClient, err = clusterv1client.NewForConfig(cfg)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	hubAddonClient, err = addonv1alpha1client.NewForConfig(cfg)
+	hubAddonClient, err = addonv1beta1client.NewForConfig(cfg)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	hubKubeClient, err = kubernetes.NewForConfig(cfg)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -91,13 +96,13 @@ var _ = ginkgo.BeforeSuite(func() {
 	testAddonImpl = &testAddon{
 		name:          "test",
 		manifests:     map[string][]runtime.Object{},
-		registrations: map[string][]addonapiv1alpha1.RegistrationConfig{},
+		registrations: map[string][]addonapiv1beta1.RegistrationConfig{},
 	}
 
 	testAddOnConfigsImpl = &testAddon{
 		name:                "test-addon-configs",
 		manifests:           map[string][]runtime.Object{},
-		registrations:       map[string][]addonapiv1alpha1.RegistrationConfig{},
+		registrations:       map[string][]addonapiv1beta1.RegistrationConfig{},
 		supportedConfigGVRs: []schema.GroupVersionResource{addOnDeploymentConfigGVR},
 	}
 
@@ -135,7 +140,7 @@ var _ = ginkgo.AfterSuite(func() {
 type testAddon struct {
 	name                string
 	manifests           map[string][]runtime.Object
-	registrations       map[string][]addonapiv1alpha1.RegistrationConfig
+	registrations       map[string][]addonapiv1beta1.RegistrationConfig
 	approveCSR          bool
 	cert                []byte
 	prober              *agent.HealthProber
@@ -143,7 +148,7 @@ type testAddon struct {
 	supportedConfigGVRs []schema.GroupVersionResource
 }
 
-func (t *testAddon) Manifests(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn) ([]runtime.Object, error) {
+func (t *testAddon) Manifests(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn) ([]runtime.Object, error) {
 	return t.manifests[cluster.Name], nil
 }
 
@@ -157,15 +162,15 @@ func (t *testAddon) GetAgentAddonOptions() agent.AgentAddonOptions {
 
 	if len(t.registrations) > 0 {
 		option.Registration = &agent.RegistrationOption{
-			CSRConfigurations: func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn,
-			) ([]addonapiv1alpha1.RegistrationConfig, error) {
+			CSRConfigurations: func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn,
+			) ([]addonapiv1beta1.RegistrationConfig, error) {
 				return t.registrations[cluster.Name], nil
 			},
-			CSRApproveCheck: func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn,
+			CSRApproveCheck: func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn,
 				csr *certificatesv1.CertificateSigningRequest) bool {
 				return t.approveCSR
 			},
-			CSRSign: func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn, csr *certificatesv1.CertificateSigningRequest) ([]byte, error) {
+			CSRSign: func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn, csr *certificatesv1.CertificateSigningRequest) ([]byte, error) {
 				return t.cert, nil
 			},
 		}
@@ -174,15 +179,15 @@ func (t *testAddon) GetAgentAddonOptions() agent.AgentAddonOptions {
 	return option
 }
 
-func newClusterManagementAddon(name string) *addonapiv1alpha1.ClusterManagementAddOn {
-	return &addonapiv1alpha1.ClusterManagementAddOn{
+func newClusterManagementAddon(name string) *addonapiv1beta1.ClusterManagementAddOn {
+	return &addonapiv1beta1.ClusterManagementAddOn{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: addonapiv1alpha1.ClusterManagementAddOnSpec{
-			InstallStrategy: addonapiv1alpha1.InstallStrategy{
-				Type: addonapiv1alpha1.AddonInstallStrategyManual,
+		Spec: addonapiv1beta1.ClusterManagementAddOnSpec{
+			InstallStrategy: addonapiv1beta1.InstallStrategy{
+				Type: addonapiv1beta1.AddonInstallStrategyManual,
 			},
 		},
 	}

@@ -19,7 +19,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/events"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/factory"
@@ -98,7 +98,7 @@ type TokenDriver struct {
 
 	// addonPatcher for updating addon status
 	addonPatcher patcher.Patcher[
-		*addonv1alpha1.ManagedClusterAddOn, addonv1alpha1.ManagedClusterAddOnSpec, addonv1alpha1.ManagedClusterAddOnStatus]
+		*addonapiv1beta1.ManagedClusterAddOn, addonapiv1beta1.ManagedClusterAddOnSpec, addonapiv1beta1.ManagedClusterAddOnStatus]
 }
 
 var _ register.RegisterDriver = &TokenDriver{}
@@ -113,8 +113,8 @@ func NewTokenDriverForAddOn(addonName, clusterName string, tokenConfig register.
 		addonClients: addonClients,
 		opt:          tokenConfig,
 		addonPatcher: patcher.NewPatcher[
-			*addonv1alpha1.ManagedClusterAddOn, addonv1alpha1.ManagedClusterAddOnSpec, addonv1alpha1.ManagedClusterAddOnStatus](
-			addonClients.AddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterName)),
+			*addonapiv1beta1.ManagedClusterAddOn, addonapiv1beta1.ManagedClusterAddOnSpec, addonapiv1beta1.ManagedClusterAddOnStatus](
+			addonClients.AddonClient.AddonV1beta1().ManagedClusterAddOns(clusterName)),
 	}
 
 	return driver
@@ -168,13 +168,13 @@ func (t *TokenDriver) Process(
 // ensureSubject ensures the subject field is set correctly for token-based authentication.
 // Subject.user is set to system:serviceaccount:<cluster-namespace>:<addon-name>-agent
 // Returns (updated, error) where updated indicates if an update was performed
-func (t *TokenDriver) ensureSubject(ctx context.Context, addon *addonv1alpha1.ManagedClusterAddOn) (bool, error) {
+func (t *TokenDriver) ensureSubject(ctx context.Context, addon *addonapiv1beta1.ManagedClusterAddOn) (bool, error) {
 	logger := klog.FromContext(ctx)
 
 	// Find the registration configuration index
 	var regIndex = -1
 	for i := range addon.Status.Registrations {
-		if addon.Status.Registrations[i].SignerName == certificatesv1.KubeAPIServerClientSignerName {
+		if addon.Status.Registrations[i].Type == addonapiv1beta1.KubeClient {
 			regIndex = i
 			break
 		}
@@ -189,7 +189,7 @@ func (t *TokenDriver) ensureSubject(ctx context.Context, addon *addonv1alpha1.Ma
 
 	// Make a copy and update subject (create new Subject with only User specified)
 	addonCopy := addon.DeepCopy()
-	addonCopy.Status.Registrations[regIndex].Subject = addonv1alpha1.Subject{
+	addonCopy.Status.Registrations[regIndex].KubeClient.Subject.BaseSubject = addonapiv1beta1.BaseSubject{
 		User: expectedSubjectUser,
 	}
 
@@ -211,7 +211,7 @@ func (t *TokenDriver) ensureSubject(ctx context.Context, addon *addonv1alpha1.Ma
 // - If ready is true, uid is guaranteed to be non-empty
 // - If ready is false, infrastructure is not ready yet (caller should wait and retry)
 // - If error is non-nil, an actual error occurred
-func (t *TokenDriver) ensureTokenInfrastructureReady(ctx context.Context, addon *addonv1alpha1.ManagedClusterAddOn) (string, bool, error) {
+func (t *TokenDriver) ensureTokenInfrastructureReady(ctx context.Context, addon *addonapiv1beta1.ManagedClusterAddOn) (string, bool, error) {
 	logger := klog.FromContext(ctx)
 
 	infraReady := meta.FindStatusCondition(addon.Status.Conditions, TokenInfrastructureReadyCondition)

@@ -10,7 +10,7 @@ import (
 
 	certificatesv1 "k8s.io/api/certificates/v1"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 )
 
 const (
@@ -21,7 +21,7 @@ const (
 // TODO: Refactor the code here once the registration configuration is available in spec of ManagedClusterAddOn
 type registrationConfig struct {
 	addOnName    string
-	registration addonv1alpha1.RegistrationConfig
+	registration addonapiv1beta1.RegistrationConfig
 
 	// secretName is the name of secret containing client certificate. If the SignerName is "kubernetes.io/kube-apiserver-client",
 	// the secret name will be "{addon name}-hub-kubeconfig". Otherwise, the secret name will be "{addon name}-{signer name}-client-cert".
@@ -37,11 +37,53 @@ type addonInstallOption struct {
 	AgentRunningOutsideManagedCluster bool   `json:"agentRunningOutsideManagedCluster"`
 }
 
+// getKubeClientDriver extracts the kubeClient driver from registrations in v1beta1
+// It returns the driver if there's a KubeClient type registration, otherwise empty string
+func getKubeClientDriver(registrations []addonapiv1beta1.RegistrationConfig) string {
+	for _, reg := range registrations {
+		if reg.Type == addonapiv1beta1.RegistrationType("kubeClient") && reg.KubeClient != nil {
+			return reg.KubeClient.Driver
+		}
+	}
+	return ""
+}
+
+// getSubject extracts the subject from v1beta1 RegistrationConfig based on its type
+func (c *registrationConfig) getSubject() (user string, groups []string, orgUnits []string) {
+	switch c.registration.Type {
+	case addonapiv1beta1.RegistrationType("kubeClient"):
+		if c.registration.KubeClient != nil {
+			return c.registration.KubeClient.Subject.User,
+				c.registration.KubeClient.Subject.Groups,
+				nil // KubeClient doesn't have OrganizationUnits
+		}
+	case addonapiv1beta1.RegistrationType("customSigner"):
+		if c.registration.CustomSigner != nil {
+			return c.registration.CustomSigner.Subject.User,
+				c.registration.CustomSigner.Subject.Groups,
+				c.registration.CustomSigner.Subject.OrganizationUnits
+		}
+	}
+	return "", nil, nil
+}
+
+// getSignerName returns the signer name from v1beta1 RegistrationConfig
+func (c *registrationConfig) getSignerName() string {
+	if c.registration.Type == addonapiv1beta1.RegistrationType("kubeClient") {
+		return certificatesv1.KubeAPIServerClientSignerName
+	}
+	if c.registration.Type == addonapiv1beta1.RegistrationType("customSigner") && c.registration.CustomSigner != nil {
+		return c.registration.CustomSigner.SignerName
+	}
+	return ""
+}
+
 func (c *registrationConfig) x509Subject(clusterName, agentName string) *pkix.Name {
+	user, groups, orgUnits := c.getSubject()
 	subject := &pkix.Name{
-		CommonName:         c.registration.Subject.User,
-		Organization:       c.registration.Subject.Groups,
-		OrganizationalUnit: c.registration.Subject.OrganizationUnits,
+		CommonName:         user,
+		Organization:       groups,
+		OrganizationalUnit: orgUnits,
 	}
 
 	// set the default common name
@@ -50,7 +92,7 @@ func (c *registrationConfig) x509Subject(clusterName, agentName string) *pkix.Na
 	}
 
 	// set the default organization if signer is KubeAPIServerClientSignerName
-	if c.registration.SignerName == certificatesv1.KubeAPIServerClientSignerName && len(subject.Organization) == 0 {
+	if c.getSignerName() == certificatesv1.KubeAPIServerClientSignerName && len(subject.Organization) == 0 {
 		subject.Organization = []string{defaultOrganization(clusterName, c.addOnName)}
 	}
 
@@ -58,12 +100,12 @@ func (c *registrationConfig) x509Subject(clusterName, agentName string) *pkix.Na
 }
 
 // getAddOnInstallationNamespace returns addon installation namespace from addon spec.
-// It first checks the installation namespace in status then addon spec, the addon default
+// It first checks the installation namespace in status then annotation (v1alpha1 compatibility), the addon default
 // installation namespace open-cluster-management-agent-addon will be returned.
-func getAddOnInstallationNamespace(addOn *addonv1alpha1.ManagedClusterAddOn) string {
+func getAddOnInstallationNamespace(addOn *addonapiv1beta1.ManagedClusterAddOn) string {
 	installationNamespace := addOn.Status.Namespace
 	if installationNamespace == "" {
-		installationNamespace = addOn.Spec.InstallNamespace
+		installationNamespace = addOn.Annotations[addonapiv1beta1.InstallNamespaceAnnotation]
 	}
 	if installationNamespace == "" {
 		installationNamespace = defaultAddOnInstallationNamespace
@@ -73,8 +115,8 @@ func getAddOnInstallationNamespace(addOn *addonv1alpha1.ManagedClusterAddOn) str
 }
 
 // isAddonRunningOutsideManagedCluster returns whether the addon agent is running on the managed cluster
-func isAddonRunningOutsideManagedCluster(addOn *addonv1alpha1.ManagedClusterAddOn) bool {
-	hostingCluster, ok := addOn.Annotations[addonv1alpha1.HostingClusterNameAnnotationKey]
+func isAddonRunningOutsideManagedCluster(addOn *addonapiv1beta1.ManagedClusterAddOn) bool {
+	hostingCluster, ok := addOn.Annotations[addonapiv1beta1.HostingClusterNameAnnotationKey]
 	if ok && len(hostingCluster) != 0 {
 		return true
 	}
@@ -86,7 +128,7 @@ func isAddonRunningOutsideManagedCluster(addOn *addonv1alpha1.ManagedClusterAddO
 func getRegistrationConfigs(
 	addOnName string,
 	installOption addonInstallOption,
-	registrations []addonv1alpha1.RegistrationConfig,
+	registrations []addonapiv1beta1.RegistrationConfig,
 	kubeClientDriver string,
 ) (map[string]registrationConfig, error) {
 	configs := map[string]registrationConfig{}
@@ -99,11 +141,13 @@ func getRegistrationConfigs(
 		}
 
 		// set the secret name of client certificate
-		switch registration.SignerName {
-		case certificatesv1.KubeAPIServerClientSignerName:
+		signerName := ""
+		if registration.Type == addonapiv1beta1.RegistrationType("kubeClient") {
+			signerName = certificatesv1.KubeAPIServerClientSignerName
 			config.secretName = fmt.Sprintf("%s-hub-kubeconfig", addOnName)
-		default:
-			config.secretName = fmt.Sprintf("%s-%s-client-cert", addOnName, strings.ReplaceAll(registration.SignerName, "/", "-"))
+		} else if registration.Type == addonapiv1beta1.RegistrationType("customSigner") && registration.CustomSigner != nil {
+			signerName = registration.CustomSigner.SignerName
+			config.secretName = fmt.Sprintf("%s-%s-client-cert", addOnName, strings.ReplaceAll(signerName, "/", "-"))
 		}
 
 		// hash registration configuration, install namespace and addOnAgentRunningOutsideManagedCluster. Use the hash
@@ -122,20 +166,27 @@ func getRegistrationConfigs(
 	return configs, nil
 }
 
-func getConfigHash(registration addonv1alpha1.RegistrationConfig, installOption addonInstallOption, kubeClientDriver string) (string, error) {
+func getConfigHash(registration addonapiv1beta1.RegistrationConfig, installOption addonInstallOption, kubeClientDriver string) (string, error) {
 	// Create a canonical config for hashing, excluding status fields set by the agent.
 	// Driver is always excluded (set by agent as status, not configuration)
 	// Subject is excluded only for token-based authentication (set by token driver)
 	// Subject is included for CSR-based and custom signer authentication (part of the configuration)
-	canonicalConfig := addonv1alpha1.RegistrationConfig{
-		SignerName: registration.SignerName,
+	canonicalConfig := addonapiv1beta1.RegistrationConfig{
+		Type: registration.Type,
 	}
 
 	// For KubeClient type registrations, check if driver is token
 	// For custom signers, always include subject
-	isKubeClientType := registration.SignerName == certificatesv1.KubeAPIServerClientSignerName
-	if !isKubeClientType || kubeClientDriver != "token" {
-		canonicalConfig.Subject = registration.Subject
+	if registration.Type == addonapiv1beta1.RegistrationType("kubeClient") {
+		if kubeClientDriver != "token" && registration.KubeClient != nil {
+			// Include subject for non-token auth
+			canonicalConfig.KubeClient = &addonapiv1beta1.KubeClientConfig{
+				Subject: registration.KubeClient.Subject,
+			}
+		}
+	} else if registration.Type == addonapiv1beta1.RegistrationType("customSigner") {
+		// Always include custom signer config
+		canonicalConfig.CustomSigner = registration.CustomSigner
 	}
 
 	data, err := json.Marshal(canonicalConfig)

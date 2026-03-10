@@ -64,7 +64,7 @@ func (o *GRPCServerOptions) Run(ctx context.Context, controllerContext *controll
 	grpcEventServer.RegisterService(ctx, csrce.CSREventDataType,
 		csr.NewCSRService(clients.KubeClient, clients.KubeInformers.Certificates().V1().CertificateSigningRequests()))
 	grpcEventServer.RegisterService(ctx, addonce.ManagedClusterAddOnEventDataType,
-		addon.NewAddonService(clients.AddOnClient, clients.AddOnInformers.Addon().V1alpha1().ManagedClusterAddOns()))
+		addon.NewAddonService(clients.AddOnClient, clients.AddOnInformers.Addon().V1beta1().ManagedClusterAddOns()))
 	grpcEventServer.RegisterService(ctx, eventce.EventEventDataType,
 		event.NewEventService(clients.KubeClient))
 	grpcEventServer.RegisterService(ctx, leasece.LeaseEventDataType,

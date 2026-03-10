@@ -26,7 +26,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/events"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/factory"
@@ -406,7 +406,7 @@ func NewCSRDriverForAddOn(addonName string, csrConfig register.CSRConfiguration,
 			Labels: map[string]string{
 				// the labels are only hints. Anyone could set/modify them.
 				clusterv1.ClusterNameLabelKey: secretOption.ClusterName,
-				addonv1alpha1.AddonLabelKey:   addonName,
+				addonapiv1beta1.AddonLabelKey:   addonName,
 			},
 		},
 		Subject:         secretOption.Subject,
@@ -465,7 +465,7 @@ func NewCSRDriver(csrConfig register.CSRConfiguration, secretOpts register.Secre
 			}
 
 			// should not contain addon key
-			_, ok := labels[addonv1alpha1.AddonLabelKey]
+			_, ok := labels[addonapiv1beta1.AddonLabelKey]
 			if ok {
 				return false
 			}
@@ -561,7 +561,7 @@ func indexByAddonFunc(obj interface{}) ([]string, error) {
 		return []string{}, nil
 	}
 
-	addon, ok := accessor.GetLabels()[addonv1alpha1.AddonLabelKey]
+	addon, ok := accessor.GetLabels()[addonapiv1beta1.AddonLabelKey]
 	if !ok {
 		return []string{}, nil
 	}
@@ -581,7 +581,7 @@ func indexByClusterFunc(obj interface{}) ([]string, error) {
 	}
 
 	// should not contain addon key
-	if _, ok := accessor.GetLabels()[addonv1alpha1.AddonLabelKey]; ok {
+	if _, ok := accessor.GetLabels()[addonapiv1beta1.AddonLabelKey]; ok {
 		return []string{}, nil
 	}
 
@@ -600,7 +600,7 @@ func createCSREventFilterFunc(clusterName, addOnName, signerName string) factory
 			return false
 		}
 		// only enqueue csr created for a specific addon
-		if labels[addonv1alpha1.AddonLabelKey] != addOnName {
+		if labels[addonapiv1beta1.AddonLabelKey] != addOnName {
 			return false
 		}
 

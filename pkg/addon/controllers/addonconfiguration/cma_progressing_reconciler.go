@@ -8,17 +8,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	"open-cluster-management.io/sdk-go/pkg/patcher"
 )
 
 type cmaProgressingReconciler struct {
 	patcher patcher.Patcher[
-		*addonv1alpha1.ClusterManagementAddOn, addonv1alpha1.ClusterManagementAddOnSpec, addonv1alpha1.ClusterManagementAddOnStatus]
+		*addonv1beta1.ClusterManagementAddOn, addonv1beta1.ClusterManagementAddOnSpec, addonv1beta1.ClusterManagementAddOnStatus]
 }
 
 func (d *cmaProgressingReconciler) reconcile(
-	ctx context.Context, cma *addonv1alpha1.ClusterManagementAddOn, graph *configurationGraph) (*addonv1alpha1.ClusterManagementAddOn, reconcileState, error) {
+	ctx context.Context, cma *addonv1beta1.ClusterManagementAddOn, graph *configurationGraph) (*addonv1beta1.ClusterManagementAddOn, reconcileState, error) {
 	var errs []error
 	cmaCopy := cma.DeepCopy()
 	placementNodes := graph.getPlacementNodes()
@@ -47,15 +47,15 @@ func (d *cmaProgressingReconciler) reconcile(
 }
 
 func setAddOnInstallProgressionsAndLastApplied(
-	installProgression *addonv1alpha1.InstallProgression,
+	installProgression *addonv1beta1.InstallProgression,
 	progressing, done, failed, timeout, total int) {
 
 	condition := metav1.Condition{
-		Type: addonv1alpha1.ManagedClusterAddOnConditionProgressing,
+		Type: addonv1beta1.ManagedClusterAddOnConditionProgressing,
 	}
 	if (total == 0 && done == 0) || (done != total) {
 		condition.Status = metav1.ConditionTrue
-		condition.Reason = addonv1alpha1.ProgressingReasonProgressing
+		condition.Reason = addonv1beta1.ProgressingReasonProgressing
 		condition.Message = fmt.Sprintf("%d/%d progressing..., %d failed %d timeout.", progressing+done, total, failed, timeout)
 	} else {
 		for i, configRef := range installProgression.ConfigReferences {
@@ -63,7 +63,7 @@ func setAddOnInstallProgressionsAndLastApplied(
 			installProgression.ConfigReferences[i].LastKnownGoodConfig = configRef.DesiredConfig.DeepCopy()
 		}
 		condition.Status = metav1.ConditionFalse
-		condition.Reason = addonv1alpha1.ProgressingReasonCompleted
+		condition.Reason = addonv1beta1.ProgressingReasonCompleted
 		condition.Message = fmt.Sprintf("%d/%d completed with no errors, %d failed %d timeout.", done, total, failed, timeout)
 	}
 	meta.SetStatusCondition(&installProgression.Conditions, condition)

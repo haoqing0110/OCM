@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 
 	"open-cluster-management.io/ocm/pkg/addon"
@@ -213,7 +213,7 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 	assertTokenRefreshedCondition := func(clusterName, addonName string) {
 		ginkgo.By("Check token refreshed addon status condition")
 		gomega.Eventually(func() bool {
-			addon, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(clusterName).
+			addon, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(clusterName).
 				Get(context.TODO(), addonName, metav1.GetOptions{})
 			if err != nil {
 				return false
@@ -283,18 +283,21 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 
 	assertAddOnSignerUpdate := func(signerName string) {
 		gomega.Eventually(func() error {
-			addOn, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+			addOn, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 				Get(context.TODO(), addOnName, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 
-			addOn.Status.Registrations = []addonv1alpha1.RegistrationConfig{
+			addOn.Status.Registrations = []addonv1beta1.RegistrationConfig{
 				{
-					SignerName: signerName,
+					Type: addonv1beta1.CustomSigner,
+					CustomSigner: &addonv1beta1.CustomSignerConfig{
+						SignerName: signerName,
+					},
 				},
 			}
-			_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+			_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 				UpdateStatus(context.TODO(), addOn, metav1.UpdateOptions{})
 			return err
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
@@ -312,19 +315,18 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		// create addon
-		addOn := &addonv1alpha1.ManagedClusterAddOn{
+		addOn := &addonv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      addOnName,
-				Namespace: managedClusterName,
+				Name:        addOnName,
+				Namespace:   managedClusterName,
+				Annotations: map[string]string{addonv1beta1.InstallNamespaceAnnotation: addOnName},
 			},
-			Spec: addonv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: addOnName,
-			},
+			Spec: addonv1beta1.ManagedClusterAddOnSpec{},
 		}
-		_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.TODO(), addOn, metav1.CreateOptions{})
+		_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.TODO(), addOn, metav1.CreateOptions{})
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-		_, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Get(context.TODO(), addOnName, metav1.GetOptions{})
+		_, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Get(context.TODO(), addOnName, metav1.GetOptions{})
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	}
 
@@ -349,7 +351,7 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 			assertSuccessAddOnBootstrap(signerName)
 
 			ginkgo.By("Delete the addon and check if secret is gone")
-			err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Delete(context.TODO(), addOnName, metav1.DeleteOptions{})
+			err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Delete(context.TODO(), addOnName, metav1.DeleteOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			assertSecretGone(addOnName, getSecretName(addOnName, signerName))
 
@@ -370,29 +372,31 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 			ginkgo.By("Create ManagedClusterAddOn cr for token authentication")
 
 			// create addon
-			addOn := &addonv1alpha1.ManagedClusterAddOn{
+			addOn := &addonv1beta1.ManagedClusterAddOn{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      addOnName,
-					Namespace: managedClusterName,
+					Name:        addOnName,
+					Namespace:   managedClusterName,
+					Annotations: map[string]string{addonv1beta1.InstallNamespaceAnnotation: addOnName},
 				},
-				Spec: addonv1alpha1.ManagedClusterAddOnSpec{
-					InstallNamespace: addOnName,
-				},
+				Spec: addonv1beta1.ManagedClusterAddOnSpec{},
 			}
-			_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.TODO(), addOn, metav1.CreateOptions{})
+			_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.TODO(), addOn, metav1.CreateOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			gomega.Eventually(func() error {
-				created, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Get(context.TODO(), addOnName, metav1.GetOptions{})
+				created, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Get(context.TODO(), addOnName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				created.Status.Registrations = []addonv1alpha1.RegistrationConfig{
+				created.Status.Registrations = []addonv1beta1.RegistrationConfig{
 					{
-						SignerName: signerName,
+						Type: addonv1beta1.CustomSigner,
+						CustomSigner: &addonv1beta1.CustomSignerConfig{
+							SignerName: signerName,
+						},
 					},
 				}
-				_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{})
+				_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{})
 				return err
 			}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
 
@@ -415,7 +419,7 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 			assertValidTokenCredential(addOnName, getSecretName(addOnName, signerName), expectedProxyURL)
 
 			ginkgo.By("Delete the addon and check if secret is gone")
-			err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Delete(context.TODO(), addOnName, metav1.DeleteOptions{})
+			err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Delete(context.TODO(), addOnName, metav1.DeleteOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			assertSecretGone(addOnName, getSecretName(addOnName, signerName))
 		})
@@ -492,18 +496,21 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 
 			ginkgo.By("Update addon registration with subject for CSR")
 			gomega.Eventually(func() error {
-				addOn, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+				addOn, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 					Get(context.TODO(), addOnName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 
-				addOn.Status.Registrations = []addonv1alpha1.RegistrationConfig{
+				addOn.Status.Registrations = []addonv1beta1.RegistrationConfig{
 					{
-						SignerName: signerName,
+						Type: addonv1beta1.CustomSigner,
+						CustomSigner: &addonv1beta1.CustomSignerConfig{
+							SignerName: signerName,
+						},
 					},
 				}
-				_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+				_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 					UpdateStatus(context.TODO(), addOn, metav1.UpdateOptions{})
 				return err
 			}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
@@ -552,18 +559,21 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 			assertSuccessAddOnEnabling()
 
 			gomega.Eventually(func() error {
-				addOn, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+				addOn, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 					Get(context.TODO(), addOnName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 
-				addOn.Status.Registrations = []addonv1alpha1.RegistrationConfig{
+				addOn.Status.Registrations = []addonv1beta1.RegistrationConfig{
 					{
-						SignerName: signerName,
+						Type: addonv1beta1.CustomSigner,
+						CustomSigner: &addonv1beta1.CustomSignerConfig{
+							SignerName: signerName,
+						},
 					},
 				}
-				_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+				_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 					UpdateStatus(context.TODO(), addOn, metav1.UpdateOptions{})
 				return err
 			}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
@@ -602,19 +612,22 @@ var _ = ginkgo.Describe("Addon Token Registration", func() {
 
 			ginkgo.By("Update addon registration to remove subject (for token)")
 			gomega.Eventually(func() error {
-				addOn, err := addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+				addOn, err := addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 					Get(context.TODO(), addOnName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 
-				addOn.Status.Registrations = []addonv1alpha1.RegistrationConfig{
+				addOn.Status.Registrations = []addonv1beta1.RegistrationConfig{
 					{
-						SignerName: signerName,
-						// No subject - will be set by token driver
+						Type: addonv1beta1.CustomSigner,
+						CustomSigner: &addonv1beta1.CustomSignerConfig{
+							SignerName: signerName,
+							// No subject - will be set by token driver
+						},
 					},
 				}
-				_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).
+				_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).
 					UpdateStatus(context.TODO(), addOn, metav1.UpdateOptions{})
 				return err
 			}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())

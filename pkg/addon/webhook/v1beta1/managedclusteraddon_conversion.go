@@ -15,12 +15,6 @@ import (
 	internalv1alpha1 "open-cluster-management.io/ocm/pkg/addon/webhook/v1alpha1"
 )
 
-const (
-	// InstallNamespaceAnnotation is the annotation key for storing installNamespace
-	// This is used because installNamespace field was removed in v1beta1
-	InstallNamespaceAnnotation = "addon.open-cluster-management.io/v1alpha1-install-namespace"
-)
-
 // ConvertTo converts this ManagedClusterAddOn (v1beta1) to the Hub version (v1alpha1)
 func (src *ManagedClusterAddOn) ConvertTo(dstRaw conversion.Hub) error {
 	dst, ok := dstRaw.(*internalv1alpha1.ManagedClusterAddOn)
@@ -46,11 +40,11 @@ func (src *ManagedClusterAddOn) ConvertTo(dstRaw conversion.Hub) error {
 
 	// Restore installNamespace from annotation
 	// This field was removed in v1beta1, so we store it in annotation
-	if installNs, ok := src.Annotations[InstallNamespaceAnnotation]; ok {
+	if installNs, ok := src.Annotations[addonv1beta1.InstallNamespaceAnnotation]; ok {
 		v1alpha1Obj.Spec.InstallNamespace = installNs
 		// Remove the internal annotation from v1alpha1 object
 		// This annotation is only used for v1beta1 storage, not for v1alpha1 API
-		delete(v1alpha1Obj.Annotations, InstallNamespaceAnnotation)
+		delete(v1alpha1Obj.Annotations, addonv1beta1.InstallNamespaceAnnotation)
 	}
 
 	// Manually populate deprecated ConfigReferent field in ConfigReferences
@@ -100,7 +94,7 @@ func (dst *ManagedClusterAddOn) ConvertFrom(srcRaw conversion.Hub) error {
 		if dst.ManagedClusterAddOn.Annotations == nil {
 			dst.ManagedClusterAddOn.Annotations = make(map[string]string)
 		}
-		dst.ManagedClusterAddOn.Annotations[InstallNamespaceAnnotation] = src.Spec.InstallNamespace
+		dst.ManagedClusterAddOn.Annotations[addonv1beta1.InstallNamespaceAnnotation] = src.Spec.InstallNamespace
 	}
 
 	return nil

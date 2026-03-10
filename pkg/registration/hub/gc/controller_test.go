@@ -13,7 +13,7 @@ import (
 	fakemetadataclient "k8s.io/client-go/metadata/fake"
 	clienttesting "k8s.io/client-go/testing"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	fakeclusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned/fake"
 	clusterinformers "open-cluster-management.io/api/client/cluster/informers/externalversions"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -126,7 +126,7 @@ func TestGController(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			scheme := fakemetadataclient.NewTestScheme()
-			_ = addonv1alpha1.Install(scheme)
+			_ = addonapiv1beta1.Install(scheme)
 			_ = workv1.Install(scheme)
 			_ = metav1.AddMetaToScheme(scheme)
 			metadataClient := fakemetadataclient.NewSimpleMetadataClient(scheme, c.objs...)
@@ -144,7 +144,7 @@ func TestGController(t *testing.T) {
 				clusterInformerFactory.Cluster().V1().ManagedClusters(),
 				clusterClient,
 				metadataClient,
-				[]string{"addon.open-cluster-management.io/v1alpha1/managedclusteraddons",
+				[]string{"addon.open-cluster-management.io/v1beta1/managedclusteraddons",
 					"work.open-cluster-management.io/v1/manifestworks"},
 			)
 

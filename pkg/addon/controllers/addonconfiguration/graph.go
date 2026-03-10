@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterlisterv1beta1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	clustersdkv1alpha1 "open-cluster-management.io/sdk-go/pkg/apis/cluster/v1alpha1"
@@ -30,7 +30,7 @@ type configurationGraph struct {
 
 // installStrategyNode is a node in configurationGraph defined by a install strategy
 type installStrategyNode struct {
-	placementRef    addonv1alpha1.PlacementRef
+	placementRef    addonv1beta1.PlacementRef
 	pdTracker       *clustersdkv1beta1.PlacementDecisionClustersTracker
 	rolloutStrategy clusterv1alpha1.RolloutStrategy
 	rolloutResult   clustersdkv1alpha1.RolloutResult
@@ -44,11 +44,11 @@ type installStrategyNode struct {
 // addonnode
 type addonNode struct {
 	desiredConfigs addonConfigMap
-	mca            *addonv1alpha1.ManagedClusterAddOn
+	mca            *addonv1beta1.ManagedClusterAddOn
 	status         *clustersdkv1alpha1.ClusterRolloutStatus
 }
 
-type addonConfigMap map[addonv1alpha1.ConfigGroupResource][]addonv1alpha1.ConfigReference
+type addonConfigMap map[addonv1beta1.ConfigGroupResource][]addonv1beta1.ConfigReference
 
 // set addon rollout status
 func (n *addonNode) setRolloutStatus() {
@@ -62,7 +62,7 @@ func (n *addonNode) setRolloutStatus() {
 
 	var progressingCond metav1.Condition
 	for _, cond := range n.mca.Status.Conditions {
-		if cond.Type == addonv1alpha1.ManagedClusterAddOnConditionProgressing {
+		if cond.Type == addonv1beta1.ManagedClusterAddOnConditionProgressing {
 			progressingCond = cond
 			break
 		}
@@ -77,10 +77,10 @@ func (n *addonNode) setRolloutStatus() {
 				// desired config spec hash matches actual, but last applied config spec hash doesn't match actual
 			} else if !equality.Semantic.DeepEqual(actual.LastAppliedConfig, actual.DesiredConfig) {
 				switch progressingCond.Reason {
-				case addonv1alpha1.ProgressingReasonFailed:
+				case addonv1beta1.ProgressingReasonFailed:
 					n.status.Status = clustersdkv1alpha1.Failed
 					n.status.LastTransitionTime = &progressingCond.LastTransitionTime
-				case addonv1alpha1.ProgressingReasonProgressing:
+				case addonv1beta1.ProgressingReasonProgressing:
 					n.status.Status = clustersdkv1alpha1.Progressing
 					n.status.LastTransitionTime = &progressingCond.LastTransitionTime
 				default:
@@ -97,7 +97,7 @@ func (n *addonNode) setRolloutStatus() {
 
 	// succeed
 	n.status.Status = clustersdkv1alpha1.Succeeded
-	if progressingCond.Reason == addonv1alpha1.ProgressingReasonCompleted {
+	if progressingCond.Reason == addonv1beta1.ProgressingReasonCompleted {
 		n.status.LastTransitionTime = &progressingCond.LastTransitionTime
 	}
 }
@@ -108,7 +108,7 @@ func (m addonConfigMap) copy() addonConfigMap {
 		// copy the key ConfigGroupResource
 		newk := k.DeepCopy()
 		// copy the slice of ConfigReference
-		newv := make([]addonv1alpha1.ConfigReference, len(v))
+		newv := make([]addonv1beta1.ConfigReference, len(v))
 		for i, cr := range v {
 			newv[i] = *cr.DeepCopy()
 		}
@@ -125,8 +125,8 @@ func (m addonConfigMap) len() int {
 	return totalLength
 }
 
-func (m addonConfigMap) containsConfig(expectConfigGr addonv1alpha1.ConfigGroupResource,
-	expectConfigRef addonv1alpha1.ConfigReferent) (int, bool) {
+func (m addonConfigMap) containsConfig(expectConfigGr addonv1beta1.ConfigGroupResource,
+	expectConfigRef addonv1beta1.ConfigReferent) (int, bool) {
 	if existArray, ok := m[expectConfigGr]; ok {
 		for i, e := range existArray {
 			if expectConfigRef == e.DesiredConfig.ConfigReferent {
@@ -138,8 +138,8 @@ func (m addonConfigMap) containsConfig(expectConfigGr addonv1alpha1.ConfigGroupR
 	return -1, false
 }
 
-func (m addonConfigMap) orderedKeys() []addonv1alpha1.ConfigGroupResource {
-	gvks := []addonv1alpha1.ConfigGroupResource{}
+func (m addonConfigMap) orderedKeys() []addonv1beta1.ConfigGroupResource {
+	gvks := []addonv1beta1.ConfigGroupResource{}
 	for gvk := range m {
 		gvks = append(gvks, gvk)
 	}
@@ -152,7 +152,7 @@ func (m addonConfigMap) orderedKeys() []addonv1alpha1.ConfigGroupResource {
 	return gvks
 }
 
-func newGraph(supportedConfigs []addonv1alpha1.ConfigMeta, defaultConfigReferences []addonv1alpha1.DefaultConfigReference) *configurationGraph {
+func newGraph(defaultConfigs []addonv1beta1.AddOnConfig, defaultConfigReferences []addonv1beta1.DefaultConfigReference) *configurationGraph {
 	graph := &configurationGraph{
 		nodes: []*installStrategyNode{},
 		defaults: &installStrategyNode{
@@ -161,15 +161,14 @@ func newGraph(supportedConfigs []addonv1alpha1.ConfigMeta, defaultConfigReferenc
 		},
 	}
 
-	// init graph.defaults.desiredConfigs with supportedConfigs
-	for _, config := range supportedConfigs {
-		if config.DefaultConfig != nil {
-			graph.defaults.desiredConfigs[config.ConfigGroupResource] = []addonv1alpha1.ConfigReference{
+	// init graph.defaults.desiredConfigs with defaultConfigs
+	for _, config := range defaultConfigs {
+		if config.Name != "" && config.Name != addonv1beta1.ReservedNoDefaultConfigName {
+			graph.defaults.desiredConfigs[config.ConfigGroupResource] = []addonv1beta1.ConfigReference{
 				{
 					ConfigGroupResource: config.ConfigGroupResource,
-					ConfigReferent:      *config.DefaultConfig,
-					DesiredConfig: &addonv1alpha1.ConfigSpecHash{
-						ConfigReferent: *config.DefaultConfig,
+					DesiredConfig: &addonv1beta1.ConfigSpecHash{
+						ConfigReferent: config.ConfigReferent,
 					},
 				},
 			}
@@ -193,7 +192,7 @@ func newGraph(supportedConfigs []addonv1alpha1.ConfigMeta, defaultConfigReferenc
 }
 
 // addAddonNode to the graph, starting from placement with the highest order
-func (g *configurationGraph) addAddonNode(mca *addonv1alpha1.ManagedClusterAddOn) {
+func (g *configurationGraph) addAddonNode(mca *addonv1beta1.ManagedClusterAddOn) {
 	for i := len(g.nodes) - 1; i >= 0; i-- {
 		if g.nodes[i].clusters.Has(mca.Namespace) {
 			g.nodes[i].addNode(mca)
@@ -206,8 +205,8 @@ func (g *configurationGraph) addAddonNode(mca *addonv1alpha1.ManagedClusterAddOn
 
 // addNode delete clusters on existing graph so the new configuration overrides the previous
 func (g *configurationGraph) addPlacementNode(
-	installStrategy addonv1alpha1.PlacementStrategy,
-	installProgression addonv1alpha1.InstallProgression,
+	installStrategy addonv1beta1.PlacementStrategy,
+	installProgression addonv1beta1.InstallProgression,
 	placementLister clusterlisterv1beta1.PlacementLister,
 	placementDecisionGetter helpers.PlacementDecisionGetter,
 ) error {
@@ -292,8 +291,8 @@ func (g *configurationGraph) generateRolloutResult() error {
 	return nil
 }
 
-func (g *configurationGraph) getPlacementNodes() map[addonv1alpha1.PlacementRef]*installStrategyNode {
-	placementNodeMap := map[addonv1alpha1.PlacementRef]*installStrategyNode{}
+func (g *configurationGraph) getPlacementNodes() map[addonv1beta1.PlacementRef]*installStrategyNode {
+	placementNodeMap := map[addonv1beta1.PlacementRef]*installStrategyNode{}
 	for _, node := range g.nodes {
 		placementNodeMap[node.placementRef] = node
 	}
@@ -357,7 +356,7 @@ func (g *configurationGraph) getRequeueTime() time.Duration {
 	return minRequeue
 }
 
-func (n *installStrategyNode) addNode(addon *addonv1alpha1.ManagedClusterAddOn) {
+func (n *installStrategyNode) addNode(addon *addonv1beta1.ManagedClusterAddOn) {
 	n.children[addon.Namespace] = &addonNode{
 		mca:            addon,
 		desiredConfigs: n.desiredConfigs,
@@ -571,9 +570,9 @@ func rolloutStatusHasCluster(clusterRolloutStatus []clustersdkv1alpha1.ClusterRo
 // Override the desired addonConfigMap by a slice of InstallConfigReference (from cma status),
 func overrideConfigMapByInstallConfigRef(
 	desiredConfigs addonConfigMap,
-	installConfigRefs []addonv1alpha1.InstallConfigReference,
+	installConfigRefs []addonv1beta1.InstallConfigReference,
 ) {
-	gvkOverwritten := sets.New[addonv1alpha1.ConfigGroupResource]()
+	gvkOverwritten := sets.New[addonv1beta1.ConfigGroupResource]()
 	// Go through the cma installConfigReferences,
 	// for a group of configs with same gvk, cma installConfigReferences override the desiredConfigs.
 	for _, configRef := range installConfigRefs {
@@ -583,15 +582,14 @@ func overrideConfigMapByInstallConfigRef(
 		gr := configRef.ConfigGroupResource
 		referent := configRef.DesiredConfig.ConfigReferent
 		if !gvkOverwritten.Has(gr) {
-			desiredConfigs[gr] = []addonv1alpha1.ConfigReference{}
+			desiredConfigs[gr] = []addonv1beta1.ConfigReference{}
 			gvkOverwritten.Insert(gr)
 		}
 		// If a config not exist in the desiredConfigs, append it.
 		// This is to avoid adding duplicate configs (name + namespace).
 		if _, exist := desiredConfigs.containsConfig(gr, referent); !exist {
-			desiredConfigs[gr] = append(desiredConfigs[gr], addonv1alpha1.ConfigReference{
+			desiredConfigs[gr] = append(desiredConfigs[gr], addonv1beta1.ConfigReference{
 				ConfigGroupResource: gr,
-				ConfigReferent:      referent,
 				DesiredConfig:       configRef.DesiredConfig.DeepCopy(),
 			})
 		}
@@ -601,26 +599,25 @@ func overrideConfigMapByInstallConfigRef(
 // Override the desired addonConfigMap by a slice of InstallConfigReference (from mca spec),
 func overrideConfigMapByAddOnConfigs(
 	desiredConfigs addonConfigMap,
-	addOnConfigs []addonv1alpha1.AddOnConfig,
+	addOnConfigs []addonv1beta1.AddOnConfig,
 ) {
-	gvkOverwritten := sets.New[addonv1alpha1.ConfigGroupResource]()
+	gvkOverwritten := sets.New[addonv1beta1.ConfigGroupResource]()
 	// Go through the mca addOnConfigs,
 	// for a group of configs with same gvk, mca addOnConfigs override the desiredConfigs.
 	for _, config := range addOnConfigs {
 		gr := config.ConfigGroupResource
 		referent := config.ConfigReferent
 		if !gvkOverwritten.Has(gr) {
-			desiredConfigs[gr] = []addonv1alpha1.ConfigReference{}
+			desiredConfigs[gr] = []addonv1beta1.ConfigReference{}
 			gvkOverwritten.Insert(gr)
 		}
 		// If a config not exist in the desiredConfigs, append it.
 		// This is to avoid adding duplicate configs (name + namespace).
 		if _, exist := desiredConfigs.containsConfig(gr, referent); !exist {
-			desiredConfigs[gr] = append(desiredConfigs[gr], addonv1alpha1.ConfigReference{
+			desiredConfigs[gr] = append(desiredConfigs[gr], addonv1beta1.ConfigReference{
 				ConfigGroupResource: gr,
-				ConfigReferent:      referent,
-				DesiredConfig: &addonv1alpha1.ConfigSpecHash{
-					ConfigReferent: referent,
+				DesiredConfig: &addonv1beta1.ConfigSpecHash{
+					ConfigReferent: config.ConfigReferent,
 				},
 			})
 

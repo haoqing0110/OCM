@@ -25,7 +25,7 @@ import (
 
 var (
 	addonGvr = schema.GroupVersionResource{Group: "addon.open-cluster-management.io",
-		Version: "v1alpha1", Resource: "managedclusteraddons"}
+		Version: "v1beta1", Resource: "managedclusteraddons"}
 	workGvr = schema.GroupVersionResource{Group: "work.open-cluster-management.io",
 		Version: "v1", Resource: "manifestworks"}
 )

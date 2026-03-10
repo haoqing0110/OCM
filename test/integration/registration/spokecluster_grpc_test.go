@@ -89,7 +89,7 @@ var _ = ginkgo.Describe("Registration using GRPC", ginkgo.Ordered, ginkgo.Label(
 		grpcEventServer.RegisterService(grpcServerCtx, csrce.CSREventDataType,
 			csr.NewCSRService(hook.KubeClient, hook.KubeInformers.Certificates().V1().CertificateSigningRequests()))
 		grpcEventServer.RegisterService(grpcServerCtx, addonce.ManagedClusterAddOnEventDataType,
-			addon.NewAddonService(hook.AddOnClient, hook.AddOnInformers.Addon().V1alpha1().ManagedClusterAddOns()))
+			addon.NewAddonService(hook.AddOnClient, hook.AddOnInformers.Addon().V1beta1().ManagedClusterAddOns()))
 		grpcEventServer.RegisterService(grpcServerCtx, eventce.EventEventDataType,
 			event.NewEventService(hook.KubeClient))
 		grpcEventServer.RegisterService(grpcServerCtx, leasece.LeaseEventDataType,

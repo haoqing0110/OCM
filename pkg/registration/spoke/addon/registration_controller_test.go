@@ -10,7 +10,7 @@ import (
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	clienttesting "k8s.io/client-go/testing"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	addonfake "open-cluster-management.io/api/client/addon/clientset/versioned/fake"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/factory"
@@ -31,21 +31,29 @@ func TestRegistrationSync(t *testing.T) {
 	clusterName := "cluster1"
 	signerName := "signer1"
 
-	config1 := addonv1alpha1.RegistrationConfig{
-		SignerName: signerName,
+	config1 := addonapiv1beta1.RegistrationConfig{
+		Type: addonapiv1beta1.RegistrationType("customSigner"),
+		CustomSigner: &addonapiv1beta1.CustomSignerConfig{
+			SignerName: signerName,
+		},
 	}
 
-	config2 := addonv1alpha1.RegistrationConfig{
-		SignerName: signerName,
-		Subject: addonv1alpha1.Subject{
-			User: addOnName,
+	config2 := addonapiv1beta1.RegistrationConfig{
+		Type: addonapiv1beta1.RegistrationType("customSigner"),
+		CustomSigner: &addonapiv1beta1.CustomSignerConfig{
+			SignerName: signerName,
+			Subject: addonapiv1beta1.Subject{
+				BaseSubject: addonapiv1beta1.BaseSubject{
+					User: addOnName,
+				},
+			},
 		},
 	}
 
 	cases := []struct {
 		name                                 string
 		queueKey                             string
-		addOn                                *addonv1alpha1.ManagedClusterAddOn
+		addOn                                *addonapiv1beta1.ManagedClusterAddOn
 		addOnRegistrationConfigs             map[string]map[string]registrationConfig
 		addonAgentOutsideManagedCluster      bool
 		expectedAddOnRegistrationConfigHashs map[string][]string
@@ -68,7 +76,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "addon registration enabled",
 			queueKey: addOnName,
 			addOn: newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config1}, false),
+				[]addonapiv1beta1.RegistrationConfig{config1}, false),
 			expectedAddOnRegistrationConfigHashs: map[string][]string{
 				addOnName: {hash(config1, "", false)},
 			},
@@ -82,7 +90,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "addon registration updated",
 			queueKey: addOnName,
 			addOn: newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config2}, false),
+				[]addonapiv1beta1.RegistrationConfig{config2}, false),
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addOnName: {
 					hash(config1, "", false): {
@@ -107,7 +115,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "addon install namespace updated",
 			queueKey: addOnName,
 			addOn: setAddonInstallNamespace(newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config2}, false), "ns1"),
+				[]addonapiv1beta1.RegistrationConfig{config2}, false), "ns1"),
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addOnName: {
 					hash(config2, "", false): {
@@ -151,7 +159,7 @@ func TestRegistrationSync(t *testing.T) {
 		{
 			name:     "hosted addon registration enabled",
 			queueKey: addOnName,
-			addOn:    newManagedClusterAddOn(clusterName, addOnName, []addonv1alpha1.RegistrationConfig{config1}, true),
+			addOn:    newManagedClusterAddOn(clusterName, addOnName, []addonapiv1beta1.RegistrationConfig{config1}, true),
 			expectedAddOnRegistrationConfigHashs: map[string][]string{
 				addOnName: {hash(config1, "", true)},
 			},
@@ -169,7 +177,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "hosted addon registration updated",
 			queueKey: addOnName,
 			addOn: newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config2}, true),
+				[]addonapiv1beta1.RegistrationConfig{config2}, true),
 			addonAgentOutsideManagedCluster: true,
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addOnName: {
@@ -199,7 +207,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "deploy mode changes from hosted to default",
 			queueKey: addOnName,
 			addOn: newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config2}, false),
+				[]addonapiv1beta1.RegistrationConfig{config2}, false),
 			addonAgentOutsideManagedCluster: false,
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addOnName: {
@@ -228,7 +236,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "deploy mode changes from default to hosted",
 			queueKey: addOnName,
 			addOn: newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config2}, true),
+				[]addonapiv1beta1.RegistrationConfig{config2}, true),
 			addonAgentOutsideManagedCluster: true,
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addOnName: {
@@ -279,7 +287,7 @@ func TestRegistrationSync(t *testing.T) {
 			name:     "resync",
 			queueKey: factory.DefaultQueueKey,
 			addOn: newManagedClusterAddOn(clusterName, addOnName,
-				[]addonv1alpha1.RegistrationConfig{config1}, false),
+				[]addonapiv1beta1.RegistrationConfig{config1}, false),
 			addOnRegistrationConfigs: map[string]map[string]registrationConfig{
 				addOnName: {
 					hash(config1, "", false): {
@@ -320,7 +328,7 @@ func TestRegistrationSync(t *testing.T) {
 			}
 			addonClient := addonfake.NewSimpleClientset(addons...)
 			addonInformerFactory := addoninformers.NewSharedInformerFactory(addonClient, time.Minute*10)
-			addonStore := addonInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore()
+			addonStore := addonInformerFactory.Addon().V1beta1().ManagedClusterAddOns().Informer().GetStore()
 			if c.addOn != nil {
 				if err := addonStore.Add(c.addOn); err != nil {
 					t.Fatal(err)
@@ -335,10 +343,10 @@ func TestRegistrationSync(t *testing.T) {
 				clusterName:          clusterName,
 				managementKubeClient: managementClient,
 				spokeKubeClient:      kubeClient,
-				hubAddOnLister:       addonInformerFactory.Addon().V1alpha1().ManagedClusterAddOns().Lister(),
+				hubAddOnLister:       addonInformerFactory.Addon().V1beta1().ManagedClusterAddOns().Lister(),
 				patcher: patcher.NewPatcher[
-					*addonv1alpha1.ManagedClusterAddOn, addonv1alpha1.ManagedClusterAddOnSpec, addonv1alpha1.ManagedClusterAddOnStatus](
-					addonClient.AddonV1alpha1().ManagedClusterAddOns(clusterName)),
+					*addonapiv1beta1.ManagedClusterAddOn, addonapiv1beta1.ManagedClusterAddOnSpec, addonapiv1beta1.ManagedClusterAddOnStatus](
+					addonClient.AddonV1beta1().ManagedClusterAddOns(clusterName)),
 				addonDriverFactory: &testDriverFactory{},
 				startRegistrationFunc: func(ctx context.Context, config registrationConfig) (context.CancelFunc, error) {
 					_, cancel := context.WithCancel(context.Background())
@@ -361,7 +369,14 @@ func TestRegistrationSync(t *testing.T) {
 			if c.addOn != nil && len(c.addOn.Status.Registrations) > 0 {
 				// Update addon in store with driver set (simulating informer update)
 				updatedAddOn := c.addOn.DeepCopy()
-				updatedAddOn.Status.KubeClientDriver = "csr"
+				for i := range updatedAddOn.Status.Registrations {
+					if updatedAddOn.Status.Registrations[i].Type == addonapiv1beta1.RegistrationType("kubeClient") {
+						if updatedAddOn.Status.Registrations[i].KubeClient == nil {
+							updatedAddOn.Status.Registrations[i].KubeClient = &addonapiv1beta1.KubeClientConfig{}
+						}
+						updatedAddOn.Status.Registrations[i].KubeClient.Driver = "csr"
+					}
+				}
 				if err := addonStore.Update(updatedAddOn); err != nil {
 					t.Fatal(err)
 				}
@@ -404,32 +419,32 @@ func TestRegistrationSync(t *testing.T) {
 	}
 }
 
-func newManagedClusterAddOn(namespace, name string, registrations []addonv1alpha1.RegistrationConfig,
-	hostedMode bool) *addonv1alpha1.ManagedClusterAddOn {
-	addon := &addonv1alpha1.ManagedClusterAddOn{
+func newManagedClusterAddOn(namespace, name string, registrations []addonapiv1beta1.RegistrationConfig,
+	hostedMode bool) *addonapiv1beta1.ManagedClusterAddOn {
+	addon := &addonapiv1beta1.ManagedClusterAddOn{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 		},
-		Status: addonv1alpha1.ManagedClusterAddOnStatus{
+		Status: addonapiv1beta1.ManagedClusterAddOnStatus{
 			Registrations: registrations,
 		},
 	}
 
 	if hostedMode {
-		addon.SetAnnotations(map[string]string{addonv1alpha1.HostingClusterNameAnnotationKey: "test"})
+		addon.SetAnnotations(map[string]string{addonapiv1beta1.HostingClusterNameAnnotationKey: "test"})
 	}
 	return addon
 }
 
 func setAddonInstallNamespace(
-	addon *addonv1alpha1.ManagedClusterAddOn,
-	namespace string) *addonv1alpha1.ManagedClusterAddOn {
-	addon.Spec.InstallNamespace = namespace
+	addon *addonapiv1beta1.ManagedClusterAddOn,
+	namespace string) *addonapiv1beta1.ManagedClusterAddOn {
+	addon.Annotations[addonapiv1beta1.InstallNamespaceAnnotation] = namespace
 	return addon
 }
 
-func hash(registration addonv1alpha1.RegistrationConfig, installNamespace string,
+func hash(registration addonapiv1beta1.RegistrationConfig, installNamespace string,
 	addOnAgentRunningOutsideManagedCluster bool) string {
 	if len(installNamespace) == 0 {
 		installNamespace = defaultAddOnInstallationNamespace
