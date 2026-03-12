@@ -57,7 +57,7 @@ var _ = ginkgo.Describe("Cluster deleting", func() {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
 
 		addon1 := testinghelpers.NewManagedClusterAddons("addon1", managedCluster.Name, []string{"hold"}, nil)
-		_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedCluster.Name).Create(context.Background(),
+		_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedCluster.Name).Create(context.Background(),
 			addon1, metav1.CreateOptions{})
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		manifestWork1 := testinghelpers.NewManifestWork(managedCluster.Name, "work1", []string{"hold"}, nil, nil, nil)
@@ -340,7 +340,7 @@ var _ = ginkgo.Describe("Cluster deleting", func() {
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
 
 		addon1 := testinghelpers.NewManagedClusterAddons("addon1", managedCluster.Name, []string{"hold"}, nil)
-		_, err = addOnClient.AddonV1alpha1().ManagedClusterAddOns(managedCluster.Name).Create(context.Background(),
+		_, err = addOnClient.AddonV1beta1().ManagedClusterAddOns(managedCluster.Name).Create(context.Background(),
 			addon1, metav1.CreateOptions{})
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		manifestWork1 := testinghelpers.NewManifestWork(managedCluster.Name, "work1", []string{"hold"}, nil, nil, nil)

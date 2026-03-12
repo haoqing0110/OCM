@@ -23,6 +23,7 @@ import (
 	"open-cluster-management.io/addon-framework/pkg/agent"
 	"open-cluster-management.io/addon-framework/pkg/utils"
 	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/events"
 
@@ -57,7 +58,7 @@ func AddonManagerNamespace() string {
 // If the desired AddOnTemplate is not found in the ManagedClusterAddOn Status ConfigReferences,
 // it will return a nil AddOnTemplate with no error. the caller should handle the nil
 // AddOnTemplate case.
-func (a *CRDTemplateAgentAddon) GetDesiredAddOnTemplate(addon *addonapiv1alpha1.ManagedClusterAddOn,
+func (a *CRDTemplateAgentAddon) GetDesiredAddOnTemplate(addon *addonapiv1beta1.ManagedClusterAddOn,
 	clusterName, addonName string) (*addonapiv1alpha1.AddOnTemplate, error) {
 	if addon != nil {
 		return a.getDesiredAddOnTemplateInner(addon.Name, addon.Status.ConfigReferences)
@@ -79,9 +80,9 @@ func (a *CRDTemplateAgentAddon) GetDesiredAddOnTemplate(addon *addonapiv1alpha1.
 	}
 
 	// convert the DefaultConfigReference to ConfigReference
-	var configReferences []addonapiv1alpha1.ConfigReference
+	var configReferences []addonapiv1beta1.ConfigReference
 	for _, configReference := range cma.Status.DefaultConfigReferences {
-		configReferences = append(configReferences, addonapiv1alpha1.ConfigReference{
+		configReferences = append(configReferences, addonapiv1beta1.ConfigReference{
 			ConfigGroupResource: configReference.ConfigGroupResource,
 			DesiredConfig:       configReference.DesiredConfig,
 		})
@@ -91,8 +92,8 @@ func (a *CRDTemplateAgentAddon) GetDesiredAddOnTemplate(addon *addonapiv1alpha1.
 
 func (a *CRDTemplateAgentAddon) TemplateCSRConfigurationsFunc() agent.CSRConfigurationsFunc {
 
-	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn,
-	) ([]addonapiv1alpha1.RegistrationConfig, error) {
+	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn,
+	) ([]addonapiv1beta1.RegistrationConfig, error) {
 		template, err := a.GetDesiredAddOnTemplate(addon, cluster.Name, a.addonName)
 		if err != nil {
 			return nil, fmt.Errorf("CSRConfigurations failed to get addon template for addon %s/%s: %v",
@@ -103,16 +104,17 @@ func (a *CRDTemplateAgentAddon) TemplateCSRConfigurationsFunc() agent.CSRConfigu
 				cluster.Name, a.addonName)
 		}
 
-		contain := func(rcs []addonapiv1alpha1.RegistrationConfig, signerName string) bool {
+		contain := func(rcs []addonapiv1beta1.RegistrationConfig, signerName string) bool {
 			for _, rc := range rcs {
-				if rc.SignerName == signerName {
+				if (rc.Type == addonapiv1beta1.KubeClient && signerName == certificatesv1.KubeAPIServerClientSignerName) ||
+					(rc.Type == addonapiv1beta1.CustomSigner && rc.CustomSigner != nil && rc.CustomSigner.SignerName == signerName) {
 					return true
 				}
 			}
 			return false
 		}
 
-		registrationConfigs := make([]addonapiv1alpha1.RegistrationConfig, 0)
+		registrationConfigs := make([]addonapiv1beta1.RegistrationConfig, 0)
 		for _, registration := range template.Spec.Registration {
 			switch registration.Type {
 			case addonapiv1alpha1.RegistrationTypeKubeClient:
@@ -154,29 +156,36 @@ func (a *CRDTemplateAgentAddon) TemplateCSRConfigurationsFunc() agent.CSRConfigu
 // for CustomSigner type registration addon
 func CustomSignerConfigurations(addonName, agentName string,
 	customSignerConfig *addonapiv1alpha1.CustomSignerRegistrationConfig,
-) func(cluster *clusterv1.ManagedCluster) ([]addonapiv1alpha1.RegistrationConfig, error) {
-	return func(cluster *clusterv1.ManagedCluster) ([]addonapiv1alpha1.RegistrationConfig, error) {
+) func(cluster *clusterv1.ManagedCluster) ([]addonapiv1beta1.RegistrationConfig, error) {
+	return func(cluster *clusterv1.ManagedCluster) ([]addonapiv1beta1.RegistrationConfig, error) {
 		if customSignerConfig == nil {
 			return nil, fmt.Errorf("custom signer config is nil")
 		}
-		config := addonapiv1alpha1.RegistrationConfig{
-			SignerName: customSignerConfig.SignerName,
-			Subject: addonapiv1alpha1.Subject{
-				User:   agent.DefaultUser(cluster.Name, addonName, agentName),
-				Groups: agent.DefaultGroups(cluster.Name, addonName),
+		config := addonapiv1beta1.RegistrationConfig{
+			Type: addonapiv1beta1.CustomSigner,
+			CustomSigner: &addonapiv1beta1.CustomSignerConfig{
+				SignerName: customSignerConfig.SignerName,
+				Subject: addonapiv1beta1.Subject{
+					BaseSubject: addonapiv1beta1.BaseSubject{
+						User:   agent.DefaultUser(cluster.Name, addonName, agentName),
+						Groups: agent.DefaultGroups(cluster.Name, addonName),
+					},
+				},
 			},
 		}
 		if customSignerConfig.Subject != nil {
-			config.Subject = *customSignerConfig.Subject
+			config.CustomSigner.Subject.BaseSubject.User = customSignerConfig.Subject.User
+			config.CustomSigner.Subject.BaseSubject.Groups = customSignerConfig.Subject.Groups
+			config.CustomSigner.Subject.OrganizationUnits = customSignerConfig.Subject.OrganizationUnits
 		}
 
-		return []addonapiv1alpha1.RegistrationConfig{config}, nil
+		return []addonapiv1beta1.RegistrationConfig{config}, nil
 	}
 }
 
 func (a *CRDTemplateAgentAddon) TemplateCSRApproveCheckFunc() agent.CSRApproveFunc {
 
-	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn,
+	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn,
 		csr *certificatesv1.CertificateSigningRequest) bool {
 
 		template, err := a.GetDesiredAddOnTemplate(addon, cluster.Name, a.addonName)
@@ -223,7 +232,7 @@ func (a *CRDTemplateAgentAddon) TemplateCSRApproveCheckFunc() agent.CSRApproveFu
 func KubeClientCSRApprover(agentName string) agent.CSRApproveFunc {
 	return func(
 		cluster *clusterv1.ManagedCluster,
-		addon *addonapiv1alpha1.ManagedClusterAddOn,
+		addon *addonapiv1beta1.ManagedClusterAddOn,
 		csr *certificatesv1.CertificateSigningRequest) bool {
 		if csr.Spec.SignerName != certificatesv1.KubeAPIServerClientSignerName {
 			return false
@@ -236,7 +245,7 @@ func KubeClientCSRApprover(agentName string) agent.CSRApproveFunc {
 func CustomerSignerCSRApprover(logger klog.Logger, agentName string) agent.CSRApproveFunc {
 	return func(
 		cluster *clusterv1.ManagedCluster,
-		addon *addonapiv1alpha1.ManagedClusterAddOn,
+		addon *addonapiv1beta1.ManagedClusterAddOn,
 		csr *certificatesv1.CertificateSigningRequest) bool {
 
 		logger.Info("Customer signer CSR is approved",
@@ -249,7 +258,7 @@ func CustomerSignerCSRApprover(logger klog.Logger, agentName string) agent.CSRAp
 
 func (a *CRDTemplateAgentAddon) TemplateCSRSignFunc() agent.CSRSignerFunc {
 
-	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn,
+	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn,
 		csr *certificatesv1.CertificateSigningRequest) ([]byte, error) {
 		template, err := a.GetDesiredAddOnTemplate(addon, cluster.Name, a.addonName)
 		if err != nil {
@@ -290,7 +299,7 @@ func CustomSignerWithExpiry(
 	customSignerConfig *addonapiv1alpha1.CustomSignerRegistrationConfig,
 	duration time.Duration,
 ) agent.CSRSignerFunc {
-	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn,
+	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn,
 		csr *certificatesv1.CertificateSigningRequest) ([]byte, error) {
 		if customSignerConfig == nil {
 			return nil, fmt.Errorf("custom signer config is nil")
@@ -358,7 +367,7 @@ func extractCAdata(caCertData, caKeyData []byte) ([]byte, []byte, error) {
 // It uses dynamic subject binding which works with both CSR-based and token-based authentication.
 func (a *CRDTemplateAgentAddon) TemplatePermissionConfigFunc() agent.PermissionConfigFunc {
 
-	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1alpha1.ManagedClusterAddOn) error {
+	return func(cluster *clusterv1.ManagedCluster, addon *addonapiv1beta1.ManagedClusterAddOn) error {
 		template, err := a.GetDesiredAddOnTemplate(addon, cluster.Name, a.addonName)
 		if err != nil {
 			return fmt.Errorf("PermissionConfig failed to get addon template for addon %s/%s: %v",
@@ -399,7 +408,7 @@ func (a *CRDTemplateAgentAddon) TemplatePermissionConfigFunc() agent.PermissionC
 func (a *CRDTemplateAgentAddon) createKubeClientPermissions(
 	kcrc *addonapiv1alpha1.KubeClientRegistrationConfig,
 	cluster *clusterv1.ManagedCluster,
-	addon *addonapiv1alpha1.ManagedClusterAddOn,
+	addon *addonapiv1beta1.ManagedClusterAddOn,
 ) error {
 
 	for _, pc := range kcrc.HubPermissions {
@@ -418,7 +427,7 @@ func (a *CRDTemplateAgentAddon) createKubeClientPermissions(
 
 			owner := metav1.OwnerReference{
 				// TODO: use apiVersion and kind in addon object, but now they could be empty at some unknown reason
-				APIVersion: "addon.open-cluster-management.io/v1alpha1",
+				APIVersion: "addon.open-cluster-management.io/v1beta1",
 				Kind:       "ManagedClusterAddOn",
 				Name:       addon.Name,
 				UID:        addon.UID,
@@ -475,8 +484,8 @@ func (a *CRDTemplateAgentAddon) createPermissionBinding(clusterName, addonName, 
 				addonName, strings.ToLower(roleRef.Kind)),
 			Namespace: namespace,
 			Labels: map[string]string{
-				addonapiv1alpha1.AddonLabelKey: addonName,
-				AddonTemplateLabelKey:          "",
+				addonapiv1beta1.AddonLabelKey: addonName,
+				AddonTemplateLabelKey:         "",
 			},
 		},
 		RoleRef:  roleRef,
@@ -505,18 +514,32 @@ func (a *CRDTemplateAgentAddon) createPermissionBinding(clusterName, addonName, 
 // Returns nil if no matching registration is found or if the subject is empty.
 // This function is based on the addon-framework implementation to support dynamic subject binding
 // for both CSR-based and token-based authentication.
-func buildSubjectsFromRegistration(addon *addonapiv1alpha1.ManagedClusterAddOn, signerName string) []rbacv1.Subject {
+func buildSubjectsFromRegistration(addon *addonapiv1beta1.ManagedClusterAddOn, signerName string) []rbacv1.Subject {
 	// Find the registration config for the specified signer
-	var subject *addonapiv1alpha1.Subject
+	var subject *addonapiv1beta1.Subject
 	for _, registration := range addon.Status.Registrations {
-		if registration.SignerName == signerName {
-			subject = &registration.Subject
+		// Check KubeClient type
+		if registration.Type == addonapiv1beta1.KubeClient &&
+			signerName == certificatesv1.KubeAPIServerClientSignerName &&
+			registration.KubeClient != nil {
+			// Convert KubeClientSubject to Subject
+			subject = &addonapiv1beta1.Subject{
+				BaseSubject: registration.KubeClient.Subject.BaseSubject,
+			}
+			break
+		}
+		// Check CustomSigner type
+		if registration.Type == addonapiv1beta1.CustomSigner &&
+			registration.CustomSigner != nil &&
+			registration.CustomSigner.SignerName == signerName {
+
+			subject = &registration.CustomSigner.Subject
 			break
 		}
 	}
 
 	// If no registration config found or subject is empty, return nil
-	if subject == nil || equality.Semantic.DeepEqual(*subject, addonapiv1alpha1.Subject{}) {
+	if subject == nil || equality.Semantic.DeepEqual(*subject, addonapiv1beta1.Subject{}) {
 		return nil
 	}
 

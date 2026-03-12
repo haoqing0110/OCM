@@ -23,7 +23,7 @@ import (
 	certutil "k8s.io/client-go/util/cert"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	addonclientset "open-cluster-management.io/api/client/addon/clientset/versioned"
 	clusterclientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
@@ -260,35 +260,39 @@ var _ = ginkgo.Describe("Rebootstrap", func() {
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		// create addon
-		addOn := &addonv1alpha1.ManagedClusterAddOn{
+		addOn := &addonv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      addOnName,
-				Namespace: managedClusterName,
+				Name:        addOnName,
+				Namespace:   managedClusterName,
+				Annotations: map[string]string{addonv1beta1.InstallNamespaceAnnotation: addOnName},
 			},
-			Spec: addonv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: addOnName,
-			},
+			Spec: addonv1beta1.ManagedClusterAddOnSpec{},
 		}
-		_, err = hubAddOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.TODO(), addOn, metav1.CreateOptions{})
+		_, err = hubAddOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.TODO(), addOn, metav1.CreateOptions{})
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		gomega.Eventually(func() error {
-			created, err := hubAddOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Get(context.TODO(), addOnName, metav1.GetOptions{})
+			created, err := hubAddOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Get(context.TODO(), addOnName, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
-			created.Status.Registrations = []addonv1alpha1.RegistrationConfig{
+			created.Status.Registrations = []addonv1beta1.RegistrationConfig{
 				{
-					SignerName: signerName,
-					Subject: addonv1alpha1.Subject{
-						User: addOnName,
-						Groups: []string{
-							addOnName,
+					Type: addonv1beta1.CustomSigner,
+					CustomSigner: &addonv1beta1.CustomSignerConfig{
+						SignerName: signerName,
+						Subject: addonv1beta1.Subject{
+							BaseSubject: addonv1beta1.BaseSubject{
+								User: addOnName,
+								Groups: []string{
+									addOnName,
+								},
+							},
 						},
 					},
 				},
 			}
-			_, err = hubAddOnClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{})
+			_, err = hubAddOnClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).UpdateStatus(context.TODO(), created, metav1.UpdateOptions{})
 			return err
 		}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
 

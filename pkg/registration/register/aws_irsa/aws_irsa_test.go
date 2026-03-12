@@ -13,7 +13,7 @@ import (
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	addonfake "open-cluster-management.io/api/client/addon/clientset/versioned/fake"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
 	"open-cluster-management.io/sdk-go/pkg/basecontroller/events"
@@ -216,7 +216,7 @@ func TestIsHubKubeConfigValidFunc(t *testing.T) {
 
 func TestAWSIRSADriver_Fork_TokenAuth(t *testing.T) {
 	// Setup addon client and informer
-	addon := &addonv1alpha1.ManagedClusterAddOn{
+	addon := &addonapiv1beta1.ManagedClusterAddOn{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "addon1",
 			Namespace: "cluster1",
@@ -224,7 +224,7 @@ func TestAWSIRSADriver_Fork_TokenAuth(t *testing.T) {
 	}
 	addonClient := addonfake.NewSimpleClientset(addon)
 	addonInformerFactory := addoninformers.NewSharedInformerFactory(addonClient, 10*time.Minute)
-	addonInformer := addonInformerFactory.Addon().V1alpha1().ManagedClusterAddOns()
+	addonInformer := addonInformerFactory.Addon().V1beta1().ManagedClusterAddOns()
 
 	addonClients := &register.AddOnClients{
 		AddonClient:   addonClient,

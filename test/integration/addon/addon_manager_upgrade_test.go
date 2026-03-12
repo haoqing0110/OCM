@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"open-cluster-management.io/addon-framework/pkg/addonmanager/constants"
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 )
@@ -71,7 +71,7 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 	var clusterNames []string
 	var suffix string
 	var err error
-	var cma *addonapiv1alpha1.ClusterManagementAddOn
+	var cma *addonapiv1beta1.ClusterManagementAddOn
 
 	ginkgo.BeforeEach(func() {
 		suffix = rand.String(5)
@@ -83,26 +83,26 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 		manifestWorkName = fmt.Sprintf("%s-0", constants.DeployWorkNamePrefix(testAddOnConfigsImpl.name))
 
 		// prepare cma
-		cma = &addonapiv1alpha1.ClusterManagementAddOn{
+		cma = &addonapiv1beta1.ClusterManagementAddOn{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: testAddOnConfigsImpl.name,
 			},
-			Spec: addonapiv1alpha1.ClusterManagementAddOnSpec{
-				InstallStrategy: addonapiv1alpha1.InstallStrategy{
-					Type: addonapiv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonapiv1alpha1.PlacementStrategy{
+			Spec: addonapiv1beta1.ClusterManagementAddOnSpec{
+				InstallStrategy: addonapiv1beta1.InstallStrategy{
+					Type: addonapiv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonapiv1beta1.PlacementStrategy{
 						{
-							PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementName, Namespace: placementNamespace},
+							PlacementRef: addonapiv1beta1.PlacementRef{Name: placementName, Namespace: placementNamespace},
 							RolloutStrategy: clusterv1alpha1.RolloutStrategy{
 								Type: clusterv1alpha1.All,
 							},
-							Configs: []addonapiv1alpha1.AddOnConfig{
+							Configs: []addonapiv1beta1.AddOnConfig{
 								{
-									ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+									ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 										Group:    addOnDeploymentConfigGVR.Group,
 										Resource: addOnDeploymentConfigGVR.Resource,
 									},
-									ConfigReferent: addonapiv1alpha1.ConfigReferent{
+									ConfigReferent: addonapiv1beta1.ConfigReferent{
 										Namespace: configDefaultNamespace,
 										Name:      configDefaultName,
 									},
@@ -113,7 +113,7 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				},
 			},
 		}
-		_, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
+		_, err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		assertClusterManagementAddOnAnnotations(testAddOnConfigsImpl.name)
@@ -165,7 +165,7 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 	ginkgo.AfterEach(func() {
 		err = hubKubeClient.CoreV1().Namespaces().Delete(context.Background(), configDefaultNamespace, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Delete(context.Background(), testAddOnConfigsImpl.name, metav1.DeleteOptions{})
+		err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Delete(context.Background(), testAddOnConfigsImpl.name, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		for _, managedClusterName := range clusterNames {
 			err = hubKubeClient.CoreV1().Namespaces().Delete(context.Background(), managedClusterName, metav1.DeleteOptions{})
@@ -203,25 +203,21 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("check mca status")
 			for i := 0; i < 4; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configDefaultName,
-					},
 					LastObservedGeneration: 1,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configDefaultName,
 						},
 						SpecHash: addOnDefaultConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configDefaultName,
 						},
@@ -229,13 +225,13 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
@@ -243,30 +239,30 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 			}
 
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configDefaultName,
 							},
 							SpecHash: addOnDefaultConfigSpecHash,
 						},
-						LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configDefaultName,
 							},
 							SpecHash: addOnDefaultConfigSpecHash,
 						},
-						LastKnownGoodConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastKnownGoodConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configDefaultName,
 							},
@@ -276,9 +272,9 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				},
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionFalse,
-				Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+				Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 				Message: "4/4 completed with no errors, 0 failed 0 timeout.",
 			})
 
@@ -288,25 +284,21 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("check mca status")
 			for i := 0; i < 4; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configDefaultName,
-					},
 					LastObservedGeneration: 2,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configDefaultName,
 						},
 						SpecHash: addOnTest1ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configDefaultName,
 						},
@@ -314,13 +306,13 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
@@ -328,30 +320,30 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 			}
 
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configDefaultName,
 							},
 							SpecHash: addOnTest1ConfigSpecHash,
 						},
-						LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configDefaultName,
 							},
 							SpecHash: addOnTest1ConfigSpecHash,
 						},
-						LastKnownGoodConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastKnownGoodConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configDefaultName,
 							},
@@ -361,9 +353,9 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				},
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionFalse,
-				Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+				Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 				Message: "4/4 completed with no errors, 0 failed 0 timeout.",
 			})
 
@@ -374,7 +366,7 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("rolling upgrade per cluster with ProgressDeadline and MaxFailures")
 			ginkgo.By("update cma to rolling update")
-			cma, err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Get(context.Background(), cma.Name, metav1.GetOptions{})
+			cma, err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Get(context.Background(), cma.Name, metav1.GetOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			cma.Spec.InstallStrategy.Placements[0].RolloutStrategy = clusterv1alpha1.RolloutStrategy{
 				Type: clusterv1alpha1.Progressive,
@@ -385,24 +377,20 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 						MaxFailures:      intstr.FromInt32(1),
 					}},
 			}
-			cma.Spec.InstallStrategy.Placements[0].Configs[0].ConfigReferent = addonapiv1alpha1.ConfigReferent{Namespace: configDefaultNamespace, Name: configUpdateName}
+			cma.Spec.InstallStrategy.Placements[0].Configs[0].ConfigReferent = addonapiv1beta1.ConfigReferent{Namespace: configDefaultNamespace, Name: configUpdateName}
 			start := metav1.Now()
 			patchClusterManagementAddOn(context.Background(), cma)
 
 			ginkgo.By("check mca status")
 			for i := 0; i < 2; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configUpdateName,
-					},
 					LastObservedGeneration: 1,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
@@ -410,38 +398,34 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+					Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 					Message: "progressing... work is not ready",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
 				})
 			}
 			for i := 2; i < 4; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configDefaultName,
-					},
 					LastObservedGeneration: 2,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configDefaultName,
 						},
 						SpecHash: addOnTest1ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configDefaultName,
 						},
@@ -449,13 +433,13 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionFalse,
 					Reason:  "ConfigurationsNotConfigured",
 					Message: "Configurations updated and not configured yet",
@@ -463,16 +447,16 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 			}
 
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
@@ -482,23 +466,23 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				},
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "2/4 progressing..., 0 failed 0 timeout.",
 			})
 
 			ginkgo.By("timeout after ProgressDeadline 5s and stop rollout since breach MaxFailures 1")
 			assertClusterManagementAddOnNoConditions(testAddOnConfigsImpl.name, start, 5*time.Second, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "0/4 progressing..., 0 failed 2 timeout.",
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "0/4 progressing..., 0 failed 2 timeout.",
 			})
 
@@ -512,25 +496,21 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("check mca status")
 			for i := 0; i < 2; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configUpdateName,
-					},
 					LastObservedGeneration: 1,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
 						SpecHash: addOnTest2ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
@@ -538,13 +518,13 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
@@ -553,9 +533,9 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("check cma status")
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "4/4 progressing..., 0 failed 0 timeout.",
 			})
 
@@ -566,25 +546,21 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("check mca status")
 			for i := 2; i < 4; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configUpdateName,
-					},
 					LastObservedGeneration: 1,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
 						SpecHash: addOnTest2ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
@@ -592,43 +568,43 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
 				})
 			}
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest2ConfigSpecHash,
 						},
-						LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest2ConfigSpecHash,
 						},
-						LastKnownGoodConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastKnownGoodConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
@@ -638,9 +614,9 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				},
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionFalse,
-				Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+				Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 				Message: "4/4 completed with no errors, 0 failed 0 timeout.",
 			})
 
@@ -651,7 +627,7 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("rolling upgrade per group with MinSuccessTime")
 			ginkgo.By("update cma to rolling update per group")
-			cma, err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Get(context.Background(), cma.Name, metav1.GetOptions{})
+			cma, err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Get(context.Background(), cma.Name, metav1.GetOptions{})
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 			cma.Spec.InstallStrategy.Placements[0].RolloutStrategy = clusterv1alpha1.RolloutStrategy{
 				Type: clusterv1alpha1.ProgressivePerGroup,
@@ -669,25 +645,21 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 
 			ginkgo.By("check mca status")
 			for i := 0; i < 2; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configUpdateName,
-					},
 					LastObservedGeneration: 2,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
 						SpecHash: addOnTest3ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
@@ -695,38 +667,34 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+					Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 					Message: "progressing... work is not ready",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
 				})
 			}
 			for i := 2; i < 4; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configUpdateName,
-					},
 					LastObservedGeneration: 2,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
 						SpecHash: addOnTest2ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
@@ -734,13 +702,13 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionFalse,
 					Reason:  "ConfigurationsNotConfigured",
 					Message: "Configurations updated and not configured yet",
@@ -748,30 +716,30 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 			}
 
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest3ConfigSpecHash,
 						},
-						LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest2ConfigSpecHash,
 						},
-						LastKnownGoodConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastKnownGoodConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
@@ -781,9 +749,9 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				},
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "2/4 progressing..., 0 failed 0 timeout.",
 			})
 
@@ -796,39 +764,35 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				updateManifestWorkStatus(hubWorkClient, clusterNames[i], manifestWorkName, metav1.ConditionFalse)
 			}
 			assertClusterManagementAddOnNoConditions(testAddOnConfigsImpl.name, start, 3*time.Second, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "4/4 progressing..., 0 failed 0 timeout.",
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionTrue,
-				Reason:  addonapiv1alpha1.ProgressingReasonProgressing,
+				Reason:  addonapiv1beta1.ProgressingReasonProgressing,
 				Message: "4/4 progressing..., 0 failed 0 timeout.",
 			})
 
 			ginkgo.By("check mca status")
 			for i := 0; i < 2; i++ {
-				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1alpha1.ConfigReference{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+				assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, clusterNames[i], addonapiv1beta1.ConfigReference{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					ConfigReferent: addonapiv1alpha1.ConfigReferent{
-						Namespace: configDefaultNamespace,
-						Name:      configUpdateName,
-					},
 					LastObservedGeneration: 2,
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
 						SpecHash: addOnTest3ConfigSpecHash,
 					},
-					LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      configUpdateName,
 						},
@@ -836,13 +800,13 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 					},
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 					Status:  metav1.ConditionFalse,
-					Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+					Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 					Message: "completed with no errors.",
 				})
 				assertManagedClusterAddOnConditions(testAddOnConfigsImpl.name, clusterNames[i], metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+					Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 					Status:  metav1.ConditionTrue,
 					Reason:  "ConfigurationsConfigured",
 					Message: "Configurations configured",
@@ -850,30 +814,30 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 			}
 
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest3ConfigSpecHash,
 						},
-						LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest2ConfigSpecHash,
 						},
-						LastKnownGoodConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastKnownGoodConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
@@ -889,43 +853,43 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 				updateManifestWorkStatus(hubWorkClient, clusterNames[i], manifestWorkName, metav1.ConditionTrue)
 			}
 			assertClusterManagementAddOnNoConditions(testAddOnConfigsImpl.name, start, 3*time.Second, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionFalse,
-				Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+				Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 				Message: "4/4 completed with no errors, 0 failed 0 timeout.",
 			})
 			assertClusterManagementAddOnConditions(testAddOnConfigsImpl.name, metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionProgressing,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionProgressing,
 				Status:  metav1.ConditionFalse,
-				Reason:  addonapiv1alpha1.ProgressingReasonCompleted,
+				Reason:  addonapiv1beta1.ProgressingReasonCompleted,
 				Message: "4/4 completed with no errors, 0 failed 0 timeout.",
 			})
 
 			ginkgo.By("check cma status")
-			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
-				ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+			assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementNamespace, Namespace: placementNamespace},
+				ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest3ConfigSpecHash,
 						},
-						LastAppliedConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastAppliedConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},
 							SpecHash: addOnTest3ConfigSpecHash,
 						},
-						LastKnownGoodConfig: &addonapiv1alpha1.ConfigSpecHash{
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						LastKnownGoodConfig: &addonapiv1beta1.ConfigSpecHash{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      configUpdateName,
 							},

@@ -16,8 +16,8 @@ import (
 
 	"open-cluster-management.io/addon-framework/pkg/index"
 	"open-cluster-management.io/addon-framework/pkg/utils"
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
-	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
+	addonapiv1beta1client "open-cluster-management.io/api/client/addon/clientset/versioned"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
 	clusterclientset "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterinformers "open-cluster-management.io/api/client/cluster/informers/externalversions"
@@ -54,7 +54,7 @@ func RunManager(ctx context.Context, controllerContext *controllercmd.Controller
 		return err
 	}
 
-	addonClient, err := addonv1alpha1client.NewForConfig(kubeConfig)
+	addonClient, err := addonapiv1beta1client.NewForConfig(kubeConfig)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func RunManager(ctx context.Context, controllerContext *controllercmd.Controller
 			selector := &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
-						Key:      addonv1alpha1.AddonLabelKey,
+						Key:      addonapiv1beta1.AddonLabelKey,
 						Operator: metav1.LabelSelectorOpExists,
 					},
 				},
@@ -116,7 +116,7 @@ func RunControllerManagerWithInformers(
 	ctx context.Context,
 	controllerContext *controllercmd.ControllerContext,
 	hubKubeClient kubernetes.Interface,
-	hubAddOnClient addonv1alpha1client.Interface,
+	hubAddOnClient addonapiv1beta1client.Interface,
 	hubWorkClient workv1client.Interface,
 	clusterInformers clusterinformers.SharedInformerFactory,
 	addonInformers addoninformers.SharedInformerFactory,
@@ -136,7 +136,7 @@ func RunControllerManagerWithInformers(
 		return err
 	}
 
-	err = addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().AddIndexers(
+	err = addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().AddIndexers(
 		cache.Indexers{
 			addonindex.ManagedClusterAddonByName: addonindex.IndexManagedClusterAddonByName, // addonConfigurationController, addonManagementController
 			index.ManagedClusterAddonByNamespace: index.IndexManagedClusterAddonByNamespace, // agentDeployController
@@ -148,7 +148,7 @@ func RunControllerManagerWithInformers(
 	}
 
 	// managementAddonConfigController
-	err = addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Informer().AddIndexers(
+	err = addonInformers.Addon().V1beta1().ClusterManagementAddOns().Informer().AddIndexers(
 		cache.Indexers{
 			addonindex.ClusterManagementAddonByPlacement: addonindex.IndexClusterManagementAddonByPlacement, // addonConfigurationController, addonManagementController
 			index.ClusterManagementAddonByConfig:         index.IndexClusterManagementAddonByConfig,         // cmaConfigController
@@ -159,8 +159,8 @@ func RunControllerManagerWithInformers(
 
 	addonManagementController := addonmanagement.NewAddonManagementController(
 		hubAddOnClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 		clusterInformers.Cluster().V1beta1().Placements(),
 		clusterInformers.Cluster().V1beta1().PlacementDecisions(),
 		utils.ManagedByAddonManager,
@@ -168,8 +168,8 @@ func RunControllerManagerWithInformers(
 
 	addonConfigurationController := addonconfiguration.NewAddonConfigurationController(
 		hubAddOnClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 		clusterInformers.Cluster().V1beta1().Placements(),
 		clusterInformers.Cluster().V1beta1().PlacementDecisions(),
 		utils.ManagedByAddonManager,
@@ -177,23 +177,23 @@ func RunControllerManagerWithInformers(
 
 	addonOwnerController := addonowner.NewAddonOwnerController(
 		hubAddOnClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 		utils.ManagedByAddonManager,
 	)
 
 	addonProgressingController := addonprogressing.NewAddonProgressingController(
 		hubAddOnClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 		workinformers.Work().V1().ManifestWorks(),
 		utils.ManagedByAddonManager,
 	)
 
 	mgmtAddonInstallProgressionController := cmainstallprogression.NewCMAInstallProgressionController(
 		hubAddOnClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 		utils.ManagedByAddonManager,
 	)
 
@@ -213,7 +213,7 @@ func RunControllerManagerWithInformers(
 	tokenInfrastructureController := addontokeninfra.NewTokenInfrastructureController(
 		hubKubeClient,
 		hubAddOnClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
 		tokenInfraInformers.Core().V1().ServiceAccounts(),
 		tokenInfraInformers.Rbac().V1().Roles(),
 		tokenInfraInformers.Rbac().V1().RoleBindings(),

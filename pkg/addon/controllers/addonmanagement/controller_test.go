@@ -13,7 +13,7 @@ import (
 
 	"open-cluster-management.io/addon-framework/pkg/addonmanager/addontesting"
 	"open-cluster-management.io/addon-framework/pkg/utils"
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	fakeaddon "open-cluster-management.io/api/client/addon/clientset/versioned/fake"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
 	fakecluster "open-cluster-management.io/api/client/cluster/clientset/versioned/fake"
@@ -29,7 +29,7 @@ func TestAddonInstallReconcile(t *testing.T) {
 	cases := []struct {
 		name                   string
 		managedClusteraddon    []runtime.Object
-		clusterManagementAddon *addonv1alpha1.ClusterManagementAddOn
+		clusterManagementAddon *addonv1beta1.ClusterManagementAddOn
 		placements             []runtime.Object
 		placementDecisions     []runtime.Object
 		validateAddonActions   func(t *testing.T, actions []clienttesting.Action)
@@ -46,10 +46,10 @@ func TestAddonInstallReconcile(t *testing.T) {
 		{
 			name:                "manual installStrategy",
 			managedClusteraddon: []runtime.Object{},
-			clusterManagementAddon: func() *addonv1alpha1.ClusterManagementAddOn {
+			clusterManagementAddon: func() *addonv1beta1.ClusterManagementAddOn {
 				addon := addontesting.NewClusterManagementAddon("test", "", "").Build()
-				addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-					Type: addonv1alpha1.AddonInstallStrategyManual,
+				addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+					Type: addonv1beta1.AddonInstallStrategyManual,
 				}
 				return addon
 			}(),
@@ -60,13 +60,13 @@ func TestAddonInstallReconcile(t *testing.T) {
 		{
 			name:                "placement is missing",
 			managedClusteraddon: []runtime.Object{},
-			clusterManagementAddon: func() *addonv1alpha1.ClusterManagementAddOn {
+			clusterManagementAddon: func() *addonv1beta1.ClusterManagementAddOn {
 				addon := addontesting.NewClusterManagementAddon("test", "", "").Build()
-				addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-					Type: addonv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonv1alpha1.PlacementStrategy{
+				addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+					Type: addonv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonv1beta1.PlacementStrategy{
 						{
-							PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement", Namespace: "default"},
+							PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement", Namespace: "default"},
 						},
 					},
 				}
@@ -79,13 +79,13 @@ func TestAddonInstallReconcile(t *testing.T) {
 		{
 			name:                "placement decision is missing",
 			managedClusteraddon: []runtime.Object{},
-			clusterManagementAddon: func() *addonv1alpha1.ClusterManagementAddOn {
+			clusterManagementAddon: func() *addonv1beta1.ClusterManagementAddOn {
 				addon := addontesting.NewClusterManagementAddon("test", "", "").Build()
-				addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-					Type: addonv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonv1alpha1.PlacementStrategy{
+				addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+					Type: addonv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonv1beta1.PlacementStrategy{
 						{
-							PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement", Namespace: "default"},
+							PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement", Namespace: "default"},
 						},
 					},
 				}
@@ -100,13 +100,13 @@ func TestAddonInstallReconcile(t *testing.T) {
 		{
 			name:                "install addon",
 			managedClusteraddon: []runtime.Object{},
-			clusterManagementAddon: func() *addonv1alpha1.ClusterManagementAddOn {
+			clusterManagementAddon: func() *addonv1beta1.ClusterManagementAddOn {
 				addon := addontesting.NewClusterManagementAddon("test", "", "").Build()
-				addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-					Type: addonv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonv1alpha1.PlacementStrategy{
+				addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+					Type: addonv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonv1beta1.PlacementStrategy{
 						{
-							PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement", Namespace: "default"},
+							PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement", Namespace: "default"},
 						},
 					},
 				}
@@ -137,13 +137,13 @@ func TestAddonInstallReconcile(t *testing.T) {
 				addontesting.NewAddon("test", "cluster0"),
 				addontesting.NewAddon("test", "cluster1"),
 			},
-			clusterManagementAddon: func() *addonv1alpha1.ClusterManagementAddOn {
+			clusterManagementAddon: func() *addonv1beta1.ClusterManagementAddOn {
 				addon := addontesting.NewClusterManagementAddon("test", "", "").Build()
-				addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-					Type: addonv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonv1alpha1.PlacementStrategy{
+				addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+					Type: addonv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonv1beta1.PlacementStrategy{
 						{
-							PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement", Namespace: "default"},
+							PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement", Namespace: "default"},
 						},
 					},
 				}
@@ -174,16 +174,16 @@ func TestAddonInstallReconcile(t *testing.T) {
 				addontesting.NewAddon("test", "cluster0"),
 				addontesting.NewAddon("test", "cluster1"),
 			},
-			clusterManagementAddon: func() *addonv1alpha1.ClusterManagementAddOn {
+			clusterManagementAddon: func() *addonv1beta1.ClusterManagementAddOn {
 				addon := addontesting.NewClusterManagementAddon("test", "", "").Build()
-				addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-					Type: addonv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonv1alpha1.PlacementStrategy{
+				addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+					Type: addonv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonv1beta1.PlacementStrategy{
 						{
-							PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement", Namespace: "default"},
+							PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement", Namespace: "default"},
 						},
 						{
-							PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement1", Namespace: "default"},
+							PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement1", Namespace: "default"},
 						},
 					},
 				}
@@ -230,7 +230,7 @@ func TestAddonInstallReconcile(t *testing.T) {
 			addonInformers := addoninformers.NewSharedInformerFactory(fakeAddonClient, 10*time.Minute)
 			clusterInformers := clusterv1informers.NewSharedInformerFactory(fakeClusterClient, 10*time.Minute)
 
-			err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().AddIndexers(
+			err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().AddIndexers(
 				cache.Indexers{
 					addonindex.ManagedClusterAddonByName: addonindex.IndexManagedClusterAddonByName,
 				})
@@ -251,7 +251,7 @@ func TestAddonInstallReconcile(t *testing.T) {
 			}
 
 			for _, obj := range c.managedClusteraddon {
-				if err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore().Add(obj); err != nil {
+				if err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().GetStore().Add(obj); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -260,7 +260,7 @@ func TestAddonInstallReconcile(t *testing.T) {
 				addonClient:                fakeAddonClient,
 				placementLister:            clusterInformers.Cluster().V1beta1().Placements().Lister(),
 				placementDecisionLister:    clusterInformers.Cluster().V1beta1().PlacementDecisions().Lister(),
-				managedClusterAddonIndexer: addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetIndexer(),
+				managedClusterAddonIndexer: addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().GetIndexer(),
 				addonFilterFunc:            utils.ManagedByAddonManager,
 			}
 
@@ -284,7 +284,7 @@ func TestNewAddonManagementController(t *testing.T) {
 	clusterInformers := clusterv1informers.NewSharedInformerFactory(fakeClusterClient, 10*time.Minute)
 
 	// Add required indexer
-	err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().AddIndexers(
+	err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().AddIndexers(
 		cache.Indexers{
 			addonindex.ManagedClusterAddonByName: addonindex.IndexManagedClusterAddonByName,
 		})
@@ -298,8 +298,8 @@ func TestNewAddonManagementController(t *testing.T) {
 
 	controller := NewAddonManagementController(
 		fakeAddonClient,
-		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+		addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+		addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 		clusterInformers.Cluster().V1beta1().Placements(),
 		clusterInformers.Cluster().V1beta1().PlacementDecisions(),
 		addonFilterFunc,
@@ -355,13 +355,13 @@ func TestAddonManagementControllerSync(t *testing.T) {
 				addontesting.NewAddon("test-addon", "cluster1"),
 			},
 			clusterManagementAddons: []runtime.Object{
-				func() *addonv1alpha1.ClusterManagementAddOn {
+				func() *addonv1beta1.ClusterManagementAddOn {
 					addon := addontesting.NewClusterManagementAddon("test-addon", "", "").Build()
-					addon.Spec.InstallStrategy = addonv1alpha1.InstallStrategy{
-						Type: addonv1alpha1.AddonInstallStrategyPlacements,
-						Placements: []addonv1alpha1.PlacementStrategy{
+					addon.Spec.InstallStrategy = addonv1beta1.InstallStrategy{
+						Type: addonv1beta1.AddonInstallStrategyPlacements,
+						Placements: []addonv1beta1.PlacementStrategy{
 							{
-								PlacementRef: addonv1alpha1.PlacementRef{Name: "test-placement", Namespace: "default"},
+								PlacementRef: addonv1beta1.PlacementRef{Name: "test-placement", Namespace: "default"},
 							},
 						},
 					}
@@ -409,7 +409,7 @@ func TestAddonManagementControllerSync(t *testing.T) {
 			clusterInformers := clusterv1informers.NewSharedInformerFactory(fakeClusterClient, 10*time.Minute)
 
 			// Add required indexer
-			err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().AddIndexers(
+			err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().AddIndexers(
 				cache.Indexers{
 					addonindex.ManagedClusterAddonByName: addonindex.IndexManagedClusterAddonByName,
 				})
@@ -419,13 +419,13 @@ func TestAddonManagementControllerSync(t *testing.T) {
 
 			// Populate informer stores
 			for _, obj := range c.managedClusterAddons {
-				if err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore().Add(obj); err != nil {
+				if err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().GetStore().Add(obj); err != nil {
 					t.Fatal(err)
 				}
 			}
 
 			for _, obj := range c.clusterManagementAddons {
-				if err := addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Informer().GetStore().Add(obj); err != nil {
+				if err := addonInformers.Addon().V1beta1().ClusterManagementAddOns().Informer().GetStore().Add(obj); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -449,14 +449,14 @@ func TestAddonManagementControllerSync(t *testing.T) {
 
 			controller := &addonManagementController{
 				addonClient:                   fakeAddonClient,
-				clusterManagementAddonLister:  addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Lister(),
-				clusterManagementAddonIndexer: addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Informer().GetIndexer(),
+				clusterManagementAddonLister:  addonInformers.Addon().V1beta1().ClusterManagementAddOns().Lister(),
+				clusterManagementAddonIndexer: addonInformers.Addon().V1beta1().ClusterManagementAddOns().Informer().GetIndexer(),
 				reconcilers: []addonManagementReconcile{
 					&managedClusterAddonInstallReconciler{
 						addonClient:                fakeAddonClient,
 						placementDecisionLister:    clusterInformers.Cluster().V1beta1().PlacementDecisions().Lister(),
 						placementLister:            clusterInformers.Cluster().V1beta1().Placements().Lister(),
-						managedClusterAddonIndexer: addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetIndexer(),
+						managedClusterAddonIndexer: addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().GetIndexer(),
 						addonFilterFunc:            addonFilterFunc,
 					},
 				},

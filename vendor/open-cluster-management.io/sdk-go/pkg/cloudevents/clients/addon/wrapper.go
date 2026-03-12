@@ -3,16 +3,16 @@ package addon
 import (
 	"context"
 
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/addon/v1beta1"
 
 	"k8s.io/client-go/discovery"
 
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	addonclientset "open-cluster-management.io/api/client/addon/clientset/versioned"
 	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned/typed/addon/v1alpha1"
 	addonv1v1beta1client "open-cluster-management.io/api/client/addon/clientset/versioned/typed/addon/v1beta1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/addon/v1alpha1"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/addon/v1beta1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/options"
 )
 
@@ -40,14 +40,14 @@ func (a AddonClientSetWrapper) AddonV1beta1() addonv1v1beta1client.AddonV1beta1I
 }
 
 // ManagedClusterAddOnInterface returns a client for ManagedClusterAddOn
-func ManagedClusterAddOnInterface(ctx context.Context, opt *options.GenericClientOptions[*addonapiv1alpha1.ManagedClusterAddOn]) (addonclientset.Interface, error) {
+func ManagedClusterAddOnInterface(ctx context.Context, opt *options.GenericClientOptions[*addonapiv1beta1.ManagedClusterAddOn]) (addonclientset.Interface, error) {
 	cloudEventsClient, err := opt.AgentClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	addonClient := v1alpha1.NewManagedClusterAddOnClient(cloudEventsClient, opt.WatcherStore())
+	addonClient := v1beta1.NewManagedClusterAddOnClient(cloudEventsClient, opt.WatcherStore())
 
 	// TODO switch to v1beta1
-	return &AddonClientSetWrapper{alphaClient: v1alpha1.NewAddonClientWrapper(addonClient)}, nil
+	return &AddonClientSetWrapper{betaClient: v1beta1.NewAddonClientWrapper(addonClient)}, nil
 }

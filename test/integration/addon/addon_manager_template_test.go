@@ -18,6 +18,7 @@ import (
 	"open-cluster-management.io/addon-framework/pkg/addonmanager/constants"
 	"open-cluster-management.io/addon-framework/pkg/utils"
 	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 )
@@ -49,7 +50,7 @@ var _ = ginkgo.Describe("Template deploy", func() {
 
 		s := runtime.NewScheme()
 		_ = scheme.AddToScheme(s)
-		_ = addonapiv1alpha1.Install(s)
+		_ = addonapiv1beta1.Install(s)
 		decoder := serializer.NewCodecFactory(s).UniversalDeserializer()
 
 		// prepare cluster
@@ -64,24 +65,28 @@ var _ = ginkgo.Describe("Template deploy", func() {
 		// This ensure the code could check the mca by the rollout order.
 		// If create the cma with template directly, the mca will be created in a random order and introduce
 		// flaky testing result.
-		cma := &addonapiv1alpha1.ClusterManagementAddOn{
+		cma := &addonapiv1beta1.ClusterManagementAddOn{
 			ObjectMeta: metav1.ObjectMeta{Name: addonName},
-			Spec: addonapiv1alpha1.ClusterManagementAddOnSpec{
-				SupportedConfigs: []addonapiv1alpha1.ConfigMeta{
-					{ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
-						Group: utils.AddOnTemplateGVR.Group, Resource: utils.AddOnTemplateGVR.Resource}},
-					{ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
-						Group: utils.AddOnDeploymentConfigGVR.Group, Resource: utils.AddOnDeploymentConfigGVR.Resource}},
+			Spec: addonapiv1beta1.ClusterManagementAddOnSpec{
+				DefaultConfigs: []addonapiv1beta1.AddOnConfig{
+					{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
+							Group: utils.AddOnTemplateGVR.Group, Resource: utils.AddOnTemplateGVR.Resource},
+					},
+					{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
+							Group: utils.AddOnDeploymentConfigGVR.Group, Resource: utils.AddOnDeploymentConfigGVR.Resource},
+					},
 				},
-				InstallStrategy: addonapiv1alpha1.InstallStrategy{
-					Type: addonapiv1alpha1.AddonInstallStrategyPlacements,
-					Placements: []addonapiv1alpha1.PlacementStrategy{
-						{PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementName, Namespace: placementNamespace}},
+				InstallStrategy: addonapiv1beta1.InstallStrategy{
+					Type: addonapiv1beta1.AddonInstallStrategyPlacements,
+					Placements: []addonapiv1beta1.PlacementStrategy{
+						{PlacementRef: addonapiv1beta1.PlacementRef{Name: placementName, Namespace: placementNamespace}},
 					},
 				},
 			},
 		}
-		_, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
+		_, err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		assertClusterManagementAddOnAnnotations(addonName)
@@ -100,28 +105,28 @@ var _ = ginkgo.Describe("Template deploy", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		// prepare addon deployment config
-		addonDeploymentConfig := &addonapiv1alpha1.AddOnDeploymentConfig{
+		addonDeploymentConfig := &addonapiv1beta1.AddOnDeploymentConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      addonDeployConfigName,
 				Namespace: addonDeployConfigNamespace,
 			},
-			Spec: addonapiv1alpha1.AddOnDeploymentConfigSpec{
+			Spec: addonapiv1beta1.AddOnDeploymentConfigSpec{
 				AgentInstallNamespace: "test-install-namespace",
-				CustomizedVariables: []addonapiv1alpha1.CustomizedVariable{
+				CustomizedVariables: []addonapiv1beta1.CustomizedVariable{
 					{Name: "LOG_LEVEL", Value: "4"},
 				},
-				NodePlacement: &addonapiv1alpha1.NodePlacement{
+				NodePlacement: &addonapiv1beta1.NodePlacement{
 					NodeSelector: map[string]string{"host": "ssd"},
 					Tolerations: []corev1.Toleration{
 						{Key: "foo", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
 					},
 				},
-				Registries: []addonapiv1alpha1.ImageMirror{
+				Registries: []addonapiv1beta1.ImageMirror{
 					{Source: "quay.io/open-cluster-management", Mirror: "quay.io/ocm"},
 				},
 			},
 		}
-		_, err = hubAddonClient.AddonV1alpha1().AddOnDeploymentConfigs(addonDeployConfigNamespace).Create(
+		_, err = hubAddonClient.AddonV1beta1().AddOnDeploymentConfigs(addonDeployConfigNamespace).Create(
 			context.Background(), addonDeploymentConfig, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -148,7 +153,7 @@ var _ = ginkgo.Describe("Template deploy", func() {
 			gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		}
 
-		err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Delete(context.Background(),
+		err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Delete(context.Background(),
 			addonName, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	})
@@ -157,7 +162,7 @@ var _ = ginkgo.Describe("Template deploy", func() {
 		ginkgo.By("check mca created")
 		gomega.Eventually(func() error {
 			for i := 0; i < numberOfClusters; i++ {
-				_, err := hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(clusterNames[i]).Get(context.Background(), addonName, metav1.GetOptions{})
+				_, err := hubAddonClient.AddonV1beta1().ManagedClusterAddOns(clusterNames[i]).Get(context.Background(), addonName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -171,32 +176,32 @@ var _ = ginkgo.Describe("Template deploy", func() {
 		}
 
 		ginkgo.By("update cma")
-		clusterManagementAddon, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Get(context.Background(), addonName, metav1.GetOptions{})
+		clusterManagementAddon, err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Get(context.Background(), addonName, metav1.GetOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		clusterManagementAddon.Spec.InstallStrategy = addonapiv1alpha1.InstallStrategy{
-			Type: addonapiv1alpha1.AddonInstallStrategyPlacements,
-			Placements: []addonapiv1alpha1.PlacementStrategy{{
-				PlacementRef: addonapiv1alpha1.PlacementRef{Name: placementName, Namespace: placementNamespace},
+		clusterManagementAddon.Spec.InstallStrategy = addonapiv1beta1.InstallStrategy{
+			Type: addonapiv1beta1.AddonInstallStrategyPlacements,
+			Placements: []addonapiv1beta1.PlacementStrategy{{
+				PlacementRef: addonapiv1beta1.PlacementRef{Name: placementName, Namespace: placementNamespace},
 				RolloutStrategy: clusterv1alpha1.RolloutStrategy{
 					Type:        clusterv1alpha1.Progressive,
 					Progressive: &clusterv1alpha1.RolloutProgressive{MaxConcurrency: intstr.FromInt(1)}},
-				Configs: []addonapiv1alpha1.AddOnConfig{
+				Configs: []addonapiv1beta1.AddOnConfig{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    utils.AddOnTemplateGVR.Group,
 							Resource: utils.AddOnTemplateGVR.Resource,
 						},
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Name: addonTemplateName,
 						},
 					},
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    utils.AddOnDeploymentConfigGVR.Group,
 							Resource: utils.AddOnDeploymentConfigGVR.Resource,
 						},
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Name:      addonDeployConfigName,
 							Namespace: addonDeployConfigNamespace,
 						},
@@ -206,19 +211,19 @@ var _ = ginkgo.Describe("Template deploy", func() {
 			},
 		}
 
-		_, err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Update(context.Background(), clusterManagementAddon, metav1.UpdateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Update(context.Background(), clusterManagementAddon, metav1.UpdateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		ginkgo.By("check mca condition")
 		assertManagedClusterAddOnConditions(addonName, clusterNames[0], metav1.Condition{
-			Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+			Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 			Status:  metav1.ConditionTrue,
 			Reason:  "ConfigurationsConfigured",
 			Message: "Configurations configured",
 		})
 		for i := 1; i < numberOfClusters; i++ {
 			assertManagedClusterAddOnConditions(addonName, clusterNames[i], metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 				Status:  metav1.ConditionFalse,
 				Reason:  "ConfigurationsNotConfigured",
 				Message: "Configurations updated and not configured yet",
@@ -236,14 +241,14 @@ var _ = ginkgo.Describe("Template deploy", func() {
 
 		ginkgo.By("check mca condition")
 		assertManagedClusterAddOnConditions(addonName, clusterNames[1], metav1.Condition{
-			Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+			Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 			Status:  metav1.ConditionTrue,
 			Reason:  "ConfigurationsConfigured",
 			Message: "Configurations configured",
 		})
 		for i := 2; i < numberOfClusters; i++ {
 			assertManagedClusterAddOnConditions(addonName, clusterNames[i], metav1.Condition{
-				Type:    addonapiv1alpha1.ManagedClusterAddOnConditionConfigured,
+				Type:    addonapiv1beta1.ManagedClusterAddOnConditionConfigured,
 				Status:  metav1.ConditionFalse,
 				Reason:  "ConfigurationsNotConfigured",
 				Message: "Configurations updated and not configured yet",

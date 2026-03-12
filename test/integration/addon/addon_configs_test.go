@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1alpha1 "open-cluster-management.io/api/cluster/v1alpha1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
@@ -55,14 +55,14 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		_, err = hubKubeClient.CoreV1().Namespaces().Create(context.Background(), configDefaultNS, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		addOnDefaultConfig := &addonapiv1alpha1.AddOnDeploymentConfig{
+		addOnDefaultConfig := &addonapiv1beta1.AddOnDeploymentConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      configDefaultName,
 				Namespace: configDefaultNamespace,
 			},
 			Spec: addOnDefaultConfigSpec,
 		}
-		_, err = hubAddonClient.AddonV1alpha1().AddOnDeploymentConfigs(configDefaultNamespace).Create(
+		_, err = hubAddonClient.AddonV1beta1().AddOnDeploymentConfigs(configDefaultNamespace).Create(
 			context.Background(), addOnDefaultConfig, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	})
@@ -74,32 +74,31 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		err = hubKubeClient.CoreV1().Namespaces().Delete(context.Background(), configDefaultNamespace, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Delete(context.Background(), testAddOnConfigsImpl.name, metav1.DeleteOptions{})
+		err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Delete(context.Background(), testAddOnConfigsImpl.name, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		delete(testAddOnConfigsImpl.registrations, managedClusterName)
 	})
 
 	ginkgo.It("Should use default config", func() {
-		addon := &addonapiv1alpha1.ManagedClusterAddOn{
+		addon := &addonapiv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      testAddOnConfigsImpl.name,
-				Namespace: managedClusterName,
+				Name:        testAddOnConfigsImpl.name,
+				Namespace:   managedClusterName,
+				Annotations: map[string]string{addonapiv1beta1.InstallNamespaceAnnotation: "test"},
 			},
-			Spec: addonapiv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: "test",
-			},
+			Spec: addonapiv1beta1.ManagedClusterAddOnSpec{},
 		}
-		_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		// check cma status
-		assertClusterManagementAddOnDefaultConfigReferences(testAddOnConfigsImpl.name, addonapiv1alpha1.DefaultConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertClusterManagementAddOnDefaultConfigReferences(testAddOnConfigsImpl.name, addonapiv1beta1.DefaultConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: configDefaultNamespace,
 					Name:      configDefaultName,
 				},
@@ -109,18 +108,14 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name)
 
 		// check mca status
-		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: configDefaultNamespace,
-				Name:      configDefaultName,
-			},
 			LastObservedGeneration: 1,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: configDefaultNamespace,
 					Name:      configDefaultName,
 				},
@@ -130,21 +125,21 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 	})
 
 	ginkgo.It("Should override default config by install strategy", func() {
-		cma, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Get(context.Background(), testAddOnConfigsImpl.name, metav1.GetOptions{})
+		cma, err := hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Get(context.Background(), testAddOnConfigsImpl.name, metav1.GetOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		cma.Spec.InstallStrategy = addonapiv1alpha1.InstallStrategy{
-			Type: addonapiv1alpha1.AddonInstallStrategyPlacements,
-			Placements: []addonapiv1alpha1.PlacementStrategy{
+		cma.Spec.InstallStrategy = addonapiv1beta1.InstallStrategy{
+			Type: addonapiv1beta1.AddonInstallStrategyPlacements,
+			Placements: []addonapiv1beta1.PlacementStrategy{
 				{
-					PlacementRef: addonapiv1alpha1.PlacementRef{Name: "test-placement", Namespace: configDefaultNamespace},
-					Configs: []addonapiv1alpha1.AddOnConfig{
+					PlacementRef: addonapiv1beta1.PlacementRef{Name: "test-placement", Namespace: configDefaultNamespace},
+					Configs: []addonapiv1beta1.AddOnConfig{
 						{
-							ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+							ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 								Group:    addOnDeploymentConfigGVR.Group,
 								Resource: addOnDeploymentConfigGVR.Resource,
 							},
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: configDefaultNamespace,
 								Name:      "another-config",
 							},
@@ -182,29 +177,29 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		// check cma status
-		assertClusterManagementAddOnDefaultConfigReferences(testAddOnConfigsImpl.name, addonapiv1alpha1.DefaultConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertClusterManagementAddOnDefaultConfigReferences(testAddOnConfigsImpl.name, addonapiv1beta1.DefaultConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: configDefaultNamespace,
 					Name:      configDefaultName,
 				},
 				SpecHash: addOnDefaultConfigSpecHash,
 			},
 		})
-		assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1alpha1.InstallProgression{
-			PlacementRef: addonapiv1alpha1.PlacementRef{Name: "test-placement", Namespace: configDefaultNamespace},
-			ConfigReferences: []addonapiv1alpha1.InstallConfigReference{
+		assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name, addonapiv1beta1.InstallProgression{
+			PlacementRef: addonapiv1beta1.PlacementRef{Name: "test-placement", Namespace: configDefaultNamespace},
+			ConfigReferences: []addonapiv1beta1.InstallConfigReference{
 				{
-					ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+					ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 						Group:    addOnDeploymentConfigGVR.Group,
 						Resource: addOnDeploymentConfigGVR.Resource,
 					},
-					DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+					DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Namespace: configDefaultNamespace,
 							Name:      "another-config",
 						},
@@ -215,18 +210,14 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		})
 
 		// check mca status
-		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: configDefaultNamespace,
-				Name:      "another-config",
-			},
 			LastObservedGeneration: 0,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: configDefaultNamespace,
 					Name:      "another-config",
 				},
@@ -236,30 +227,30 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 	})
 
 	ginkgo.It("Should override default config", func() {
-		addOnConfig := &addonapiv1alpha1.AddOnDeploymentConfig{
+		addOnConfig := &addonapiv1beta1.AddOnDeploymentConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "addon-config",
 				Namespace: managedClusterName,
 			},
 			Spec: addOnTest1ConfigSpec,
 		}
-		_, err = hubAddonClient.AddonV1alpha1().AddOnDeploymentConfigs(managedClusterName).Create(context.Background(), addOnConfig, metav1.CreateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().AddOnDeploymentConfigs(managedClusterName).Create(context.Background(), addOnConfig, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		addon := &addonapiv1alpha1.ManagedClusterAddOn{
+		addon := &addonapiv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      testAddOnConfigsImpl.name,
-				Namespace: managedClusterName,
+				Name:        testAddOnConfigsImpl.name,
+				Namespace:   managedClusterName,
+				Annotations: map[string]string{addonapiv1beta1.InstallNamespaceAnnotation: "test"},
 			},
-			Spec: addonapiv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: "test",
-				Configs: []addonapiv1alpha1.AddOnConfig{
+			Spec: addonapiv1beta1.ManagedClusterAddOnSpec{
+				Configs: []addonapiv1beta1.AddOnConfig{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Name:      addOnConfig.Name,
 							Namespace: addOnConfig.Namespace,
 						},
@@ -267,11 +258,11 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 				},
 			},
 		}
-		_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		addon.Status = addonapiv1alpha1.ManagedClusterAddOnStatus{
-			SupportedConfigs: []addonapiv1alpha1.ConfigGroupResource{
+		addon.Status = addonapiv1beta1.ManagedClusterAddOnStatus{
+			SupportedConfigs: []addonapiv1beta1.ConfigGroupResource{
 				{
 					Group:    addOnDeploymentConfigGVR.Group,
 					Resource: addOnDeploymentConfigGVR.Resource,
@@ -281,13 +272,13 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		updateManagedClusterAddOnStatus(context.Background(), addon)
 
 		// check cma status
-		assertClusterManagementAddOnDefaultConfigReferences(testAddOnConfigsImpl.name, addonapiv1alpha1.DefaultConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertClusterManagementAddOnDefaultConfigReferences(testAddOnConfigsImpl.name, addonapiv1beta1.DefaultConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: configDefaultNamespace,
 					Name:      configDefaultName,
 				},
@@ -297,18 +288,14 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		assertClusterManagementAddOnInstallProgression(testAddOnConfigsImpl.name)
 
 		// check mca status
-		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: addOnConfig.Namespace,
-				Name:      addOnConfig.Name,
-			},
 			LastObservedGeneration: 1,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: addOnConfig.Namespace,
 					Name:      addOnConfig.Name,
 				},
@@ -318,30 +305,30 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 	})
 
 	ginkgo.It("Should update config spec successfully", func() {
-		addOnConfig := &addonapiv1alpha1.AddOnDeploymentConfig{
+		addOnConfig := &addonapiv1beta1.AddOnDeploymentConfig{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "addon-config",
 				Namespace: managedClusterName,
 			},
 			Spec: addOnTest1ConfigSpec,
 		}
-		_, err = hubAddonClient.AddonV1alpha1().AddOnDeploymentConfigs(managedClusterName).Create(context.Background(), addOnConfig, metav1.CreateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().AddOnDeploymentConfigs(managedClusterName).Create(context.Background(), addOnConfig, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		addon := &addonapiv1alpha1.ManagedClusterAddOn{
+		addon := &addonapiv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      testAddOnConfigsImpl.name,
-				Namespace: managedClusterName,
+				Name:        testAddOnConfigsImpl.name,
+				Namespace:   managedClusterName,
+				Annotations: map[string]string{addonapiv1beta1.InstallNamespaceAnnotation: "test"},
 			},
-			Spec: addonapiv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: "test",
-				Configs: []addonapiv1alpha1.AddOnConfig{
+			Spec: addonapiv1beta1.ManagedClusterAddOnSpec{
+				Configs: []addonapiv1beta1.AddOnConfig{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group,
 							Resource: addOnDeploymentConfigGVR.Resource,
 						},
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Name:      addOnConfig.Name,
 							Namespace: addOnConfig.Namespace,
 						},
@@ -349,11 +336,11 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 				},
 			},
 		}
-		addon, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
+		addon, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		addon.Status = addonapiv1alpha1.ManagedClusterAddOnStatus{
-			SupportedConfigs: []addonapiv1alpha1.ConfigGroupResource{
+		addon.Status = addonapiv1beta1.ManagedClusterAddOnStatus{
+			SupportedConfigs: []addonapiv1beta1.ConfigGroupResource{
 				{
 					Group:    addOnDeploymentConfigGVR.Group,
 					Resource: addOnDeploymentConfigGVR.Resource,
@@ -363,18 +350,14 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		updateManagedClusterAddOnStatus(context.Background(), addon)
 
 		// check mca status
-		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: addOnConfig.Namespace,
-				Name:      addOnConfig.Name,
-			},
 			LastObservedGeneration: 1,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: addOnConfig.Namespace,
 					Name:      addOnConfig.Name,
 				},
@@ -382,26 +365,22 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 			},
 		})
 
-		addOnConfig, err = hubAddonClient.AddonV1alpha1().AddOnDeploymentConfigs(managedClusterName).Get(context.Background(), addOnConfig.Name, metav1.GetOptions{})
+		addOnConfig, err = hubAddonClient.AddonV1beta1().AddOnDeploymentConfigs(managedClusterName).Get(context.Background(), addOnConfig.Name, metav1.GetOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		addOnConfig.Spec = addOnTest2ConfigSpec
-		_, err = hubAddonClient.AddonV1alpha1().AddOnDeploymentConfigs(managedClusterName).Update(context.Background(), addOnConfig, metav1.UpdateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().AddOnDeploymentConfigs(managedClusterName).Update(context.Background(), addOnConfig, metav1.UpdateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		// check mca status
-		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: addOnConfig.Namespace,
-				Name:      addOnConfig.Name,
-			},
 			LastObservedGeneration: 2,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: addOnConfig.Namespace,
 					Name:      addOnConfig.Name,
 				},
@@ -412,20 +391,20 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 
 	ginkgo.It("Should not update unsupported config spec hash", func() {
 		// do not update mca status.SupportedConfigs
-		addon := &addonapiv1alpha1.ManagedClusterAddOn{
+		addon := &addonapiv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      testAddOnConfigsImpl.name,
-				Namespace: managedClusterName,
+				Name:        testAddOnConfigsImpl.name,
+				Namespace:   managedClusterName,
+				Annotations: map[string]string{addonapiv1beta1.InstallNamespaceAnnotation: "test"},
 			},
-			Spec: addonapiv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: "test",
-				Configs: []addonapiv1alpha1.AddOnConfig{
+			Spec: addonapiv1beta1.ManagedClusterAddOnSpec{
+				Configs: []addonapiv1beta1.AddOnConfig{
 					{
-						ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+						ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 							Group:    addOnDeploymentConfigGVR.Group + "test",
 							Resource: addOnDeploymentConfigGVR.Resource + "test",
 						},
-						ConfigReferent: addonapiv1alpha1.ConfigReferent{
+						ConfigReferent: addonapiv1beta1.ConfigReferent{
 							Name:      "addon-config-test",
 							Namespace: managedClusterName,
 						},
@@ -433,39 +412,31 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 				},
 			},
 		}
-		_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		// check mca status
-		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		assertManagedClusterAddOnConfigReferences(testAddOnConfigsImpl.name, managedClusterName, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group,
 				Resource: addOnDeploymentConfigGVR.Resource,
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: configDefaultNamespace,
-				Name:      configDefaultName,
-			},
 			LastObservedGeneration: 1,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: configDefaultNamespace,
 					Name:      configDefaultName,
 				},
 				SpecHash: addOnDefaultConfigSpecHash,
 			},
-		}, addonapiv1alpha1.ConfigReference{
-			ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+		}, addonapiv1beta1.ConfigReference{
+			ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 				Group:    addOnDeploymentConfigGVR.Group + "test",
 				Resource: addOnDeploymentConfigGVR.Resource + "test",
 			},
-			ConfigReferent: addonapiv1alpha1.ConfigReferent{
-				Namespace: managedClusterName,
-				Name:      "addon-config-test",
-			},
 			LastObservedGeneration: 0,
-			DesiredConfig: &addonapiv1alpha1.ConfigSpecHash{
-				ConfigReferent: addonapiv1alpha1.ConfigReferent{
+			DesiredConfig: &addonapiv1beta1.ConfigSpecHash{
+				ConfigReferent: addonapiv1beta1.ConfigReferent{
 					Namespace: managedClusterName,
 					Name:      "addon-config-test",
 				},

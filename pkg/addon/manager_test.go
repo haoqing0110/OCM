@@ -14,7 +14,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	clusterv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -55,7 +55,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	err = clusterv1.Install(scheme.Scheme)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	err = addonv1alpha1.Install(scheme.Scheme)
+	err = addonv1beta1.Install(scheme.Scheme)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 

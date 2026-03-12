@@ -18,9 +18,11 @@ import (
 	"open-cluster-management.io/addon-framework/pkg/agent"
 	"open-cluster-management.io/addon-framework/pkg/utils"
 	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
-	addonv1alpha1client "open-cluster-management.io/api/client/addon/clientset/versioned"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
+	addonv1beta1client "open-cluster-management.io/api/client/addon/clientset/versioned"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
 	addonlisterv1alpha1 "open-cluster-management.io/api/client/addon/listers/addon/v1alpha1"
+	addonlisterv1beta1 "open-cluster-management.io/api/client/addon/listers/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 )
 
@@ -65,10 +67,10 @@ type CRDTemplateAgentAddon struct {
 	trimCRDDescription bool
 
 	hubKubeClient       kubernetes.Interface
-	addonClient         addonv1alpha1client.Interface
-	addonLister         addonlisterv1alpha1.ManagedClusterAddOnLister
+	addonClient         addonv1beta1client.Interface
+	addonLister         addonlisterv1beta1.ManagedClusterAddOnLister
 	addonTemplateLister addonlisterv1alpha1.AddOnTemplateLister
-	cmaLister           addonlisterv1alpha1.ClusterManagementAddOnLister
+	cmaLister           addonlisterv1beta1.ClusterManagementAddOnLister
 	rolebindingLister   rbacv1lister.RoleBindingLister
 	addonName           string
 	agentName           string
@@ -79,7 +81,7 @@ func NewCRDTemplateAgentAddon(
 	ctx context.Context,
 	addonName string,
 	hubKubeClient kubernetes.Interface,
-	addonClient addonv1alpha1client.Interface,
+	addonClient addonv1beta1client.Interface,
 	addonInformers addoninformers.SharedInformerFactory,
 	rolebindingLister rbacv1lister.RoleBindingLister,
 	getValuesFuncs ...addonfactory.GetValuesFunc,
@@ -92,9 +94,9 @@ func NewCRDTemplateAgentAddon(
 
 		hubKubeClient:       hubKubeClient,
 		addonClient:         addonClient,
-		addonLister:         addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Lister(),
+		addonLister:         addonInformers.Addon().V1beta1().ManagedClusterAddOns().Lister(),
 		addonTemplateLister: addonInformers.Addon().V1alpha1().AddOnTemplates().Lister(),
-		cmaLister:           addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Lister(),
+		cmaLister:           addonInformers.Addon().V1beta1().ClusterManagementAddOns().Lister(),
 		rolebindingLister:   rolebindingLister,
 		addonName:           addonName,
 		agentName:           fmt.Sprintf("%s-agent", addonName),
@@ -105,7 +107,7 @@ func NewCRDTemplateAgentAddon(
 
 func (a *CRDTemplateAgentAddon) Manifests(
 	cluster *clusterv1.ManagedCluster,
-	addon *addonapiv1alpha1.ManagedClusterAddOn) ([]runtime.Object, error) {
+	addon *addonapiv1beta1.ManagedClusterAddOn) ([]runtime.Object, error) {
 
 	template, err := a.getDesiredAddOnTemplateInner(addon.Name, addon.Status.ConfigReferences)
 	if err != nil {
@@ -163,7 +165,7 @@ func (a *CRDTemplateAgentAddon) GetAgentAddonOptions() agent.AgentAddonOptions {
 
 func (a *CRDTemplateAgentAddon) renderObjects(
 	cluster *clusterv1.ManagedCluster,
-	addon *addonapiv1alpha1.ManagedClusterAddOn,
+	addon *addonapiv1beta1.ManagedClusterAddOn,
 	template *addonapiv1alpha1.AddOnTemplate) ([]runtime.Object, error) {
 	var objects []runtime.Object
 	presetValues, configValues, privateValues, err := a.getValues(cluster, addon, template)
@@ -272,7 +274,7 @@ func (a *CRDTemplateAgentAddon) injectAdditionalObjects(
 // if the desired template is not found in the configReferences, it will
 // return nil and no error, the caller should handle the nil template case.
 func (a *CRDTemplateAgentAddon) getDesiredAddOnTemplateInner(
-	addonName string, configReferences []addonapiv1alpha1.ConfigReference,
+	addonName string, configReferences []addonapiv1beta1.ConfigReference,
 ) (*addonapiv1alpha1.AddOnTemplate, error) {
 	ok, templateRef := AddonTemplateConfigRef(configReferences)
 	if !ok {
@@ -297,7 +299,7 @@ func (a *CRDTemplateAgentAddon) getDesiredAddOnTemplateInner(
 // TemplateAgentRegistrationNamespaceFunc reads deployment/daemonset resources in the manifests and use that namespace
 // as the default registration namespace. If addonDeploymentConfig is set, uses the namespace in it.
 func (a *CRDTemplateAgentAddon) TemplateAgentRegistrationNamespaceFunc(
-	addon *addonapiv1alpha1.ManagedClusterAddOn) (string, error) {
+	addon *addonapiv1beta1.ManagedClusterAddOn) (string, error) {
 	template, err := a.getDesiredAddOnTemplateInner(addon.Name, addon.Status.ConfigReferences)
 	if err != nil {
 		return "", err

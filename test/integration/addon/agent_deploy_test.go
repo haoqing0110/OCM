@@ -17,7 +17,7 @@ import (
 
 	"open-cluster-management.io/addon-framework/pkg/addonmanager/constants"
 	"open-cluster-management.io/addon-framework/pkg/agent"
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	clusterv1 "open-cluster-management.io/api/cluster/v1"
 	workapiv1 "open-cluster-management.io/api/work/v1"
 )
@@ -88,7 +88,7 @@ var _ = ginkgo.Describe("Agent deploy", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		cma := newClusterManagementAddon(testAddonImpl.name)
-		_, err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(),
+		_, err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Create(context.Background(),
 			cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
@@ -100,7 +100,7 @@ var _ = ginkgo.Describe("Agent deploy", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 		err = hubClusterClient.ClusterV1().ManagedClusters().Delete(context.Background(), managedClusterName, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-		err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Delete(context.Background(),
+		err = hubAddonClient.AddonV1beta1().ClusterManagementAddOns().Delete(context.Background(),
 			testAddonImpl.name, metav1.DeleteOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 	})
@@ -115,15 +115,14 @@ var _ = ginkgo.Describe("Agent deploy", func() {
 		}
 
 		// Create ManagedClusterAddOn
-		addon := &addonapiv1alpha1.ManagedClusterAddOn{
+		addon := &addonapiv1beta1.ManagedClusterAddOn{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: testAddonImpl.name,
+				Name:        testAddonImpl.name,
+				Annotations: map[string]string{addonapiv1beta1.InstallNamespaceAnnotation: "default"},
 			},
-			Spec: addonapiv1alpha1.ManagedClusterAddOnSpec{
-				InstallNamespace: "default",
-			},
+			Spec: addonapiv1beta1.ManagedClusterAddOnSpec{},
 		}
-		_, err = hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
+		_, err = hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Create(context.Background(), addon, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		gomega.Eventually(func() error {
@@ -152,15 +151,15 @@ var _ = ginkgo.Describe("Agent deploy", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		gomega.Eventually(func() error {
-			addon, err := hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Get(context.Background(), testAddonImpl.name, metav1.GetOptions{})
+			addon, err := hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Get(context.Background(), testAddonImpl.name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 
-			if !meta.IsStatusConditionTrue(addon.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnManifestApplied) {
+			if !meta.IsStatusConditionTrue(addon.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnManifestApplied) {
 				return fmt.Errorf("unexpected addon applied condition, %v", addon.Status.Conditions)
 			}
-			if !meta.IsStatusConditionTrue(addon.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing) {
+			if !meta.IsStatusConditionTrue(addon.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing) {
 				return fmt.Errorf("unexpected addon progressing condition, %v", addon.Status.Conditions)
 			}
 			return nil
@@ -176,15 +175,15 @@ var _ = ginkgo.Describe("Agent deploy", func() {
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
 		gomega.Eventually(func() error {
-			addon, err := hubAddonClient.AddonV1alpha1().ManagedClusterAddOns(managedClusterName).Get(context.Background(), testAddonImpl.name, metav1.GetOptions{})
+			addon, err := hubAddonClient.AddonV1beta1().ManagedClusterAddOns(managedClusterName).Get(context.Background(), testAddonImpl.name, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
 
-			if !meta.IsStatusConditionTrue(addon.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionAvailable) {
+			if !meta.IsStatusConditionTrue(addon.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionAvailable) {
 				return fmt.Errorf("unexpected addon available condition, %v", addon.Status.Conditions)
 			}
-			if !meta.IsStatusConditionFalse(addon.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing) {
+			if !meta.IsStatusConditionFalse(addon.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing) {
 				return fmt.Errorf("unexpected addon progressing condition, %v", addon.Status.Conditions)
 			}
 			return nil

@@ -13,8 +13,8 @@ import (
 
 	"open-cluster-management.io/addon-framework/pkg/addonmanager/addontesting"
 	"open-cluster-management.io/addon-framework/pkg/utils"
-	"open-cluster-management.io/api/addon/v1alpha1"
-	addonapiv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
+	"open-cluster-management.io/api/addon/v1beta1"
+	addonapiv1beta1 "open-cluster-management.io/api/addon/v1beta1"
 	fakeaddon "open-cluster-management.io/api/client/addon/clientset/versioned/fake"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
 	fakework "open-cluster-management.io/api/client/work/clientset/versioned/fake"
@@ -61,13 +61,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
 					configCond.Reason == "WaitingForManifestApplied" &&
 					configCond.Status == metav1.ConditionFalse) {
@@ -78,12 +78,12 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to installing when no work",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -94,13 +94,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 			},
@@ -108,36 +108,36 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to installing when work config spec not match",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "hash1new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "hash2new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -151,7 +151,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hash\"}",
@@ -172,13 +172,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 0 {
@@ -189,25 +189,25 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to installing when work is not ready",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -221,7 +221,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -242,13 +242,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 0 {
@@ -259,36 +259,36 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to uprading when work config spec not match",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "hash1new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "hash2new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -302,7 +302,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hash\"}",
@@ -323,13 +323,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 0 {
@@ -340,25 +340,25 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to uprading when work is not ready",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -372,7 +372,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -393,13 +393,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 0 {
@@ -410,36 +410,36 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to install succeed",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "hash1new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "hash2new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -453,7 +453,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test1\":\"hash1new\"," +
@@ -475,13 +475,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonCompleted && configCond.Status == metav1.ConditionFalse) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonCompleted && configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 2 {
@@ -495,36 +495,36 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to upgrade succeed",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "hash1new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test1", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "hash2new",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test2", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -538,7 +538,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test1\":\"hash1new\"," +
@@ -560,13 +560,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonCompleted && configCond.Status == metav1.ConditionFalse) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonCompleted && configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 2 {
@@ -580,25 +580,25 @@ func TestReconcile(t *testing.T) {
 		{
 			name:    "works for hosted and default addon in the same namespace",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewAddon("test", "cluster1")
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
 				}
 				meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-					Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+					Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 					Status:  metav1.ConditionTrue,
-					Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+					Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 					Message: "manifests of addon are applied successfully",
 				})
 				return addon
@@ -612,7 +612,7 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey: "test",
+					addonapiv1beta1.AddonLabelKey: "test",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -633,8 +633,8 @@ func TestReconcile(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "ConfigMap", "default", "test1"),
 				)
 				hostedWork.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey:          "test",
-					addonapiv1alpha1.AddonNamespaceLabelKey: "another-cluster",
+					addonapiv1beta1.AddonLabelKey:          "test",
+					addonapiv1beta1.AddonNamespaceLabelKey: "another-cluster",
 				})
 				return []runtime.Object{work, hostedWork}
 			}(),
@@ -642,13 +642,13 @@ func TestReconcile(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonCompleted && configCond.Status == metav1.ConditionFalse) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonCompleted && configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 1 {
@@ -663,30 +663,30 @@ func TestReconcile(t *testing.T) {
 			name:    "update managedclusteraddon to configuration unsupported...",
 			syncKey: "cluster1/test",
 			managedClusteraddon: []runtime.Object{
-				func() *addonapiv1alpha1.ManagedClusterAddOn {
+				func() *addonapiv1beta1.ManagedClusterAddOn {
 					addon := addontesting.NewAddon("test", "cluster1")
-					addon.Spec.Configs = []addonapiv1alpha1.AddOnConfig{
+					addon.Spec.Configs = []addonapiv1beta1.AddOnConfig{
 						{
-							ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+							ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 								Group:    "config1.test",
 								Resource: "config1",
 							},
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: "cluster1",
 								Name:      "override",
 							},
 						},
 					}
-					addon.Status.SupportedConfigs = []addonapiv1alpha1.ConfigGroupResource{
+					addon.Status.SupportedConfigs = []addonapiv1beta1.ConfigGroupResource{
 						{
 							Group:    "configs.test",
 							Resource: "testconfigs",
 						},
 					}
 					meta.SetStatusCondition(&addon.Status.Conditions, metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					})
 					return addon
@@ -697,14 +697,14 @@ func TestReconcile(t *testing.T) {
 			validateAddonActions: func(t *testing.T, actions []clienttesting.Action) {
 				testingcommon.AssertActions(t, actions, "patch")
 				patch := actions[0].(clienttesting.PatchAction).GetPatch()
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(patch, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonConfigurationUnsupported && configCond.Status == metav1.ConditionFalse) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonConfigurationUnsupported && configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 			},
@@ -720,12 +720,12 @@ func TestReconcile(t *testing.T) {
 			workInformers := workinformers.NewSharedInformerFactory(fakeWorkClient, 10*time.Minute)
 
 			for _, obj := range c.managedClusteraddon {
-				if err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore().Add(obj); err != nil {
+				if err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().GetStore().Add(obj); err != nil {
 					t.Fatal(err)
 				}
 			}
 			for _, obj := range c.clusterManagementAddon {
-				if err := addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Informer().GetStore().Add(obj); err != nil {
+				if err := addonInformers.Addon().V1beta1().ClusterManagementAddOns().Informer().GetStore().Add(obj); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -739,8 +739,8 @@ func TestReconcile(t *testing.T) {
 
 			controller := NewAddonProgressingController(
 				fakeAddonClient,
-				addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-				addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+				addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+				addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 				workInformers.Work().V1().ManifestWorks(),
 				utils.ManagedByAddonManager,
 			)
@@ -777,13 +777,13 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
 					configCond.Reason == "WaitingForManifestApplied" &&
 					configCond.Status == metav1.ConditionFalse) {
@@ -797,9 +797,9 @@ func TestReconcileHostedAddons(t *testing.T) {
 			managedClusteraddon: []runtime.Object{
 				addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 				),
@@ -812,13 +812,13 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
 					configCond.Reason == "WaitingForHostingManifestApplied" &&
 					configCond.Status == metav1.ConditionFalse) {
@@ -832,15 +832,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 			managedClusteraddon: []runtime.Object{
 				addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				),
@@ -853,15 +853,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
-					configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing &&
+					configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing &&
 					configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
@@ -870,30 +870,30 @@ func TestReconcileHostedAddons(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to installing when work config spec not match",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				)
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
@@ -912,8 +912,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 						testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 					)
 					work.SetLabels(map[string]string{
-						addonapiv1alpha1.AddonLabelKey:          "test",
-						addonapiv1alpha1.AddonNamespaceLabelKey: "cluster1",
+						addonapiv1beta1.AddonLabelKey:          "test",
+						addonapiv1beta1.AddonNamespaceLabelKey: "cluster1",
 					})
 					work.SetAnnotations(map[string]string{
 						workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hash\"}",
@@ -935,15 +935,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
-					configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing &&
+					configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing &&
 					configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
@@ -955,30 +955,30 @@ func TestReconcileHostedAddons(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to installing when work is not ready",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				)
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
@@ -996,8 +996,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey:          "test",
-					addonapiv1alpha1.AddonNamespaceLabelKey: "cluster1",
+					addonapiv1beta1.AddonLabelKey:          "test",
+					addonapiv1beta1.AddonNamespaceLabelKey: "cluster1",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -1018,13 +1018,13 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing && configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 				if len(addOn.Status.ConfigReferences) != 0 {
@@ -1035,30 +1035,30 @@ func TestReconcileHostedAddons(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to uprading when work config spec not match",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				)
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
@@ -1076,8 +1076,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey:          "test",
-					addonapiv1alpha1.AddonNamespaceLabelKey: "cluster1",
+					addonapiv1beta1.AddonLabelKey:          "test",
+					addonapiv1beta1.AddonNamespaceLabelKey: "cluster1",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hash\"}",
@@ -1098,15 +1098,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
-					configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing &&
+					configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing &&
 					configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
@@ -1118,30 +1118,30 @@ func TestReconcileHostedAddons(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to uprading when work is not ready",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				)
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
@@ -1159,8 +1159,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey:          "test",
-					addonapiv1alpha1.AddonNamespaceLabelKey: "cluster1",
+					addonapiv1beta1.AddonLabelKey:          "test",
+					addonapiv1beta1.AddonNamespaceLabelKey: "cluster1",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -1181,15 +1181,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
-					configCond.Reason == addonapiv1alpha1.ProgressingReasonProgressing &&
+					configCond.Reason == addonapiv1beta1.ProgressingReasonProgressing &&
 					configCond.Status == metav1.ConditionTrue) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
@@ -1201,30 +1201,30 @@ func TestReconcileHostedAddons(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to install succeed",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				)
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "",
 						},
 					},
@@ -1242,8 +1242,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey:          "test",
-					addonapiv1alpha1.AddonNamespaceLabelKey: "cluster1",
+					addonapiv1beta1.AddonLabelKey:          "test",
+					addonapiv1beta1.AddonNamespaceLabelKey: "cluster1",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -1264,15 +1264,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
-					configCond.Reason == addonapiv1alpha1.ProgressingReasonCompleted &&
+					configCond.Reason == addonapiv1beta1.ProgressingReasonCompleted &&
 					configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
@@ -1289,30 +1289,30 @@ func TestReconcileHostedAddons(t *testing.T) {
 		{
 			name:    "update managedclusteraddon to upgrade succeed",
 			syncKey: "cluster1/test",
-			managedClusteraddon: []runtime.Object{func() *addonapiv1alpha1.ManagedClusterAddOn {
+			managedClusteraddon: []runtime.Object{func() *addonapiv1beta1.ManagedClusterAddOn {
 				addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "manifests of addon are applied successfully",
 					},
 					metav1.Condition{
-						Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+						Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 						Status:  metav1.ConditionTrue,
-						Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+						Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 						Message: "hosting manifests of addon are applied successfully",
 					},
 				)
-				addon.Status.ConfigReferences = []addonapiv1alpha1.ConfigReference{
+				addon.Status.ConfigReferences = []addonapiv1beta1.ConfigReference{
 					{
-						ConfigGroupResource: v1alpha1.ConfigGroupResource{Group: "core", Resource: "foo"},
-						DesiredConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						ConfigGroupResource: v1beta1.ConfigGroupResource{Group: "core", Resource: "foo"},
+						DesiredConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hashnew",
 						},
-						LastAppliedConfig: &v1alpha1.ConfigSpecHash{
-							ConfigReferent: v1alpha1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
+						LastAppliedConfig: &v1beta1.ConfigSpecHash{
+							ConfigReferent: v1beta1.ConfigReferent{Name: "test", Namespace: "open-cluster-management"},
 							SpecHash:       "hash",
 						},
 					},
@@ -1330,8 +1330,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 					testingcommon.NewUnstructured("v1", "Deployment", "default", "test1"),
 				)
 				work.SetLabels(map[string]string{
-					addonapiv1alpha1.AddonLabelKey:          "test",
-					addonapiv1alpha1.AddonNamespaceLabelKey: "cluster1",
+					addonapiv1beta1.AddonLabelKey:          "test",
+					addonapiv1beta1.AddonNamespaceLabelKey: "cluster1",
 				})
 				work.SetAnnotations(map[string]string{
 					workapiv1.ManifestConfigSpecHashAnnotationKey: "{\"foo.core/open-cluster-management/test\":\"hashnew\"}",
@@ -1352,15 +1352,15 @@ func TestReconcileHostedAddons(t *testing.T) {
 				testingcommon.AssertActions(t, actions, "patch")
 				actual := actions[0].(clienttesting.PatchActionImpl).Patch
 
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(actual, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 				configCond := meta.FindStatusCondition(
-					addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
+					addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
 				if !(configCond != nil &&
-					configCond.Reason == addonapiv1alpha1.ProgressingReasonCompleted &&
+					configCond.Reason == addonapiv1beta1.ProgressingReasonCompleted &&
 					configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
@@ -1378,34 +1378,34 @@ func TestReconcileHostedAddons(t *testing.T) {
 			name:    "update managedclusteraddon to configuration unsupported...",
 			syncKey: "cluster1/test",
 			managedClusteraddon: []runtime.Object{
-				func() *addonapiv1alpha1.ManagedClusterAddOn {
+				func() *addonapiv1beta1.ManagedClusterAddOn {
 					addon := addontesting.NewHostedModeAddon("test", "cluster1", "hosting-cluster",
 						metav1.Condition{
-							Type:    addonapiv1alpha1.ManagedClusterAddOnManifestApplied,
+							Type:    addonapiv1beta1.ManagedClusterAddOnManifestApplied,
 							Status:  metav1.ConditionTrue,
-							Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+							Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 							Message: "manifests of addon are applied successfully",
 						},
 						metav1.Condition{
-							Type:    addonapiv1alpha1.ManagedClusterAddOnHostingManifestApplied,
+							Type:    addonapiv1beta1.ManagedClusterAddOnHostingManifestApplied,
 							Status:  metav1.ConditionTrue,
-							Reason:  addonapiv1alpha1.AddonManifestAppliedReasonManifestsApplied,
+							Reason:  addonapiv1beta1.AddonManifestAppliedReasonManifestsApplied,
 							Message: "hosting manifests of addon are applied successfully",
 						},
 					)
-					addon.Spec.Configs = []addonapiv1alpha1.AddOnConfig{
+					addon.Spec.Configs = []addonapiv1beta1.AddOnConfig{
 						{
-							ConfigGroupResource: addonapiv1alpha1.ConfigGroupResource{
+							ConfigGroupResource: addonapiv1beta1.ConfigGroupResource{
 								Group:    "config1.test",
 								Resource: "config1",
 							},
-							ConfigReferent: addonapiv1alpha1.ConfigReferent{
+							ConfigReferent: addonapiv1beta1.ConfigReferent{
 								Namespace: "cluster1",
 								Name:      "override",
 							},
 						},
 					}
-					addon.Status.SupportedConfigs = []addonapiv1alpha1.ConfigGroupResource{
+					addon.Status.SupportedConfigs = []addonapiv1beta1.ConfigGroupResource{
 						{
 							Group:    "configs.test",
 							Resource: "testconfigs",
@@ -1421,14 +1421,14 @@ func TestReconcileHostedAddons(t *testing.T) {
 			validateAddonActions: func(t *testing.T, actions []clienttesting.Action) {
 				testingcommon.AssertActions(t, actions, "patch")
 				patch := actions[0].(clienttesting.PatchAction).GetPatch()
-				addOn := &addonapiv1alpha1.ManagedClusterAddOn{}
+				addOn := &addonapiv1beta1.ManagedClusterAddOn{}
 				err := json.Unmarshal(patch, addOn)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1alpha1.ManagedClusterAddOnConditionProgressing)
-				if !(configCond != nil && configCond.Reason == addonapiv1alpha1.ProgressingReasonConfigurationUnsupported && configCond.Status == metav1.ConditionFalse) {
+				configCond := meta.FindStatusCondition(addOn.Status.Conditions, addonapiv1beta1.ManagedClusterAddOnConditionProgressing)
+				if !(configCond != nil && configCond.Reason == addonapiv1beta1.ProgressingReasonConfigurationUnsupported && configCond.Status == metav1.ConditionFalse) {
 					t.Errorf("Condition Progressing is incorrect")
 				}
 			},
@@ -1444,13 +1444,13 @@ func TestReconcileHostedAddons(t *testing.T) {
 			workInformers := workinformers.NewSharedInformerFactory(fakeWorkClient, 10*time.Minute)
 
 			for _, obj := range c.managedClusteraddon {
-				if err := addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetStore().
+				if err := addonInformers.Addon().V1beta1().ManagedClusterAddOns().Informer().GetStore().
 					Add(obj); err != nil {
 					t.Fatal(err)
 				}
 			}
 			for _, obj := range c.clusterManagementAddon {
-				if err := addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Informer().GetStore().
+				if err := addonInformers.Addon().V1beta1().ClusterManagementAddOns().Informer().GetStore().
 					Add(obj); err != nil {
 					t.Fatal(err)
 				}
@@ -1465,8 +1465,8 @@ func TestReconcileHostedAddons(t *testing.T) {
 
 			controller := NewAddonProgressingController(
 				fakeAddonClient,
-				addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
-				addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
+				addonInformers.Addon().V1beta1().ManagedClusterAddOns(),
+				addonInformers.Addon().V1beta1().ClusterManagementAddOns(),
 				workInformers.Work().V1().ManifestWorks(),
 				utils.ManagedByAddonManager,
 			)
