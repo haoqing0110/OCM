@@ -116,8 +116,6 @@ var _ = ginkgo.Describe("Addon upgrade", func() {
 		_, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		assertClusterManagementAddOnAnnotations(testAddOnConfigsImpl.name)
-
 		// prepare cluster
 		for i := 0; i < 4; i++ {
 			managedClusterName := fmt.Sprintf("managedcluster-%s-%d", suffix, i)

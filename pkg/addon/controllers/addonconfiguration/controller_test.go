@@ -41,17 +41,12 @@ func TestNewAddonConfigurationController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addonFilterFunc := func(obj interface{}) bool {
-		return true
-	}
-
 	controller := NewAddonConfigurationController(
 		fakeAddonClient,
 		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
 		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
 		clusterInformers.Cluster().V1beta1().Placements(),
 		clusterInformers.Cluster().V1beta1().PlacementDecisions(),
-		addonFilterFunc,
 	)
 
 	if controller == nil {
@@ -74,7 +69,6 @@ func TestAddonConfigurationControllerSync(t *testing.T) {
 		placementDecisions      []runtime.Object
 		expectError             bool
 		expectedErrorMessage    string
-		addonFilterFuncResult   bool
 	}{
 		{
 			name:     "addon not found",
@@ -94,8 +88,7 @@ func TestAddonConfigurationControllerSync(t *testing.T) {
 			clusterManagementAddons: []runtime.Object{
 				addontesting.NewClusterManagementAddon("test-addon", "", "").Build(),
 			},
-			addonFilterFuncResult: false,
-			expectError:           false,
+			expectError: false,
 		},
 		{
 			name:     "basic addon sync",
@@ -106,10 +99,9 @@ func TestAddonConfigurationControllerSync(t *testing.T) {
 			clusterManagementAddons: []runtime.Object{
 				addontesting.NewClusterManagementAddon("test-addon", "", "").Build(),
 			},
-			placements:            []runtime.Object{},
-			placementDecisions:    []runtime.Object{},
-			addonFilterFuncResult: true,
-			expectError:           false,
+			placements:         []runtime.Object{},
+			placementDecisions: []runtime.Object{},
+			expectError:        false,
 		},
 		{
 			name:     "addon with placement strategy",
@@ -162,8 +154,7 @@ func TestAddonConfigurationControllerSync(t *testing.T) {
 					},
 				},
 			},
-			addonFilterFuncResult: true,
-			expectError:           false,
+			expectError: false,
 		},
 	}
 
@@ -213,10 +204,6 @@ func TestAddonConfigurationControllerSync(t *testing.T) {
 			}
 
 			// Create controller with addon filter function
-			addonFilterFunc := func(obj interface{}) bool {
-				return c.addonFilterFuncResult
-			}
-
 			controller := &addonConfigurationController{
 				addonClient:                  fakeAddonClient,
 				clusterManagementAddonLister: addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Lister(),
@@ -225,7 +212,6 @@ func TestAddonConfigurationControllerSync(t *testing.T) {
 				placementDecisionGetter: helpers.PlacementDecisionGetter{
 					Client: clusterInformers.Cluster().V1beta1().PlacementDecisions().Lister(),
 				},
-				addonFilterFunc: addonFilterFunc,
 				reconcilers: []addonConfigurationReconcile{
 					&managedClusterAddonConfigurationReconciler{
 						addonClient: fakeAddonClient,

@@ -48,8 +48,6 @@ var _ = ginkgo.Describe("AddConfigs", func() {
 		_, err = createClusterManagementAddOn(testAddOnConfigsImpl.name, configDefaultNamespace, configDefaultName)
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		assertClusterManagementAddOnAnnotations(testAddOnConfigsImpl.name)
-
 		// prepare default config
 		configDefaultNS := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: configDefaultNamespace}}
 		_, err = hubKubeClient.CoreV1().Namespaces().Create(context.Background(), configDefaultNS, metav1.CreateOptions{})

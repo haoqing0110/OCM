@@ -39,7 +39,6 @@ type addonProgressingController struct {
 	managedClusterAddonLister    addonlisterv1alpha1.ManagedClusterAddOnLister
 	clusterManagementAddonLister addonlisterv1alpha1.ClusterManagementAddOnLister
 	workLister                   worklister.ManifestWorkLister
-	addonFilterFunc              factory.EventFilterFunc
 }
 
 func NewAddonProgressingController(
@@ -47,14 +46,12 @@ func NewAddonProgressingController(
 	addonInformers addoninformerv1alpha1.ManagedClusterAddOnInformer,
 	clusterManagementAddonInformers addoninformerv1alpha1.ClusterManagementAddOnInformer,
 	workInformers workinformers.ManifestWorkInformer,
-	addonFilterFunc factory.EventFilterFunc,
 ) factory.Controller {
 	c := &addonProgressingController{
 		addonClient:                  addonClient,
 		managedClusterAddonLister:    addonInformers.Lister(),
 		clusterManagementAddonLister: clusterManagementAddonInformers.Lister(),
 		workLister:                   workInformers.Lister(),
-		addonFilterFunc:              addonFilterFunc,
 	}
 
 	return factory.New().WithInformersQueueKeysFunc(
@@ -96,19 +93,6 @@ func (c *addonProgressingController) sync(ctx context.Context, syncCtx factory.S
 		return nil
 	case err != nil:
 		return err
-	}
-
-	clusterManagementAddon, err := c.clusterManagementAddonLister.Get(addonName)
-	if errors.IsNotFound(err) {
-		return nil
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if !c.addonFilterFunc(clusterManagementAddon) {
-		return nil
 	}
 
 	// update progressing condition and last applied config

@@ -29,27 +29,24 @@ type addonOwnerController struct {
 	managedClusterAddonLister    addonlisterv1alpha1.ManagedClusterAddOnLister
 	managedClusterAddonIndexer   cache.Indexer
 	clusterManagementAddonLister addonlisterv1alpha1.ClusterManagementAddOnLister
-	addonFilterFunc              factory.EventFilterFunc
 }
 
 func NewAddonOwnerController(
 	addonClient addonv1alpha1client.Interface,
 	addonInformers addoninformerv1alpha1.ManagedClusterAddOnInformer,
 	clusterManagementAddonInformers addoninformerv1alpha1.ClusterManagementAddOnInformer,
-	addonFilterFunc factory.EventFilterFunc,
 ) factory.Controller {
 	c := &addonOwnerController{
 		addonClient:                  addonClient,
 		managedClusterAddonLister:    addonInformers.Lister(),
 		managedClusterAddonIndexer:   addonInformers.Informer().GetIndexer(),
 		clusterManagementAddonLister: clusterManagementAddonInformers.Lister(),
-		addonFilterFunc:              addonFilterFunc,
 	}
 
 	return factory.New().
-		WithFilteredEventsInformersQueueKeysFunc(
+		WithInformersQueueKeysFunc(
 			queue.QueueKeyByMetaNamespaceName,
-			c.addonFilterFunc).
+		).
 		WithInformersQueueKeysFunc(
 			addonindex.ManagedClusterAddonByNameQueueKey(addonInformers),
 			clusterManagementAddonInformers.Informer(),
@@ -89,10 +86,6 @@ func (c *addonOwnerController) sync(ctx context.Context, syncCtx factory.SyncCon
 
 	if err != nil {
 		return err
-	}
-
-	if !c.addonFilterFunc(clusterManagementAddon) {
-		return nil
 	}
 
 	owner := metav1.NewControllerRef(clusterManagementAddon, schema.GroupVersionKind{

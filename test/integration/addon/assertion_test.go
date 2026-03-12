@@ -141,25 +141,6 @@ func updateManagedClusterAddOnStatus(_ context.Context, new *addonapiv1alpha1.Ma
 	}, eventuallyTimeout, eventuallyInterval).Should(gomega.Succeed())
 }
 
-func assertClusterManagementAddOnAnnotations(name string) {
-	ginkgo.By(fmt.Sprintf("Check ClusterManagementAddOn %v Annotations", name))
-
-	gomega.Eventually(func() error {
-		actual, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Get(context.Background(), name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-
-		if _, ok := actual.Annotations[addonapiv1alpha1.AddonLifecycleAnnotationKey]; ok {
-			return fmt.Errorf("expected annotation %v to be empty, actual: %v",
-				addonapiv1alpha1.AddonLifecycleAnnotationKey,
-				actual.Annotations[addonapiv1alpha1.AddonLifecycleAnnotationKey])
-		}
-
-		return nil
-	}, eventuallyTimeout, eventuallyInterval).ShouldNot(gomega.HaveOccurred())
-}
-
 func assertClusterManagementAddOnDefaultConfigReferences(name string, expect ...addonapiv1alpha1.DefaultConfigReference) {
 	ginkgo.By(fmt.Sprintf("Check ClusterManagementAddOn %s DefaultConfigReferences", name))
 

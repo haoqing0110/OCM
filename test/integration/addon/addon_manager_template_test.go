@@ -84,8 +84,6 @@ var _ = ginkgo.Describe("Template deploy", func() {
 		_, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		assertClusterManagementAddOnAnnotations(addonName)
-
 		// prepare addon template
 		addonTemplateData, err := os.ReadFile("./test/integration/addon/testmanifests/addontemplate.yaml")
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())

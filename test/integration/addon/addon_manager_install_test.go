@@ -29,8 +29,6 @@ var _ = ginkgo.Describe("Addon install", func() {
 		_, err := hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(), cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
 
-		assertClusterManagementAddOnAnnotations(cma.Name)
-
 		placementNamespace = fmt.Sprintf("ns-%s", suffix)
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: placementNamespace}}
 		_, err = hubKubeClient.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})

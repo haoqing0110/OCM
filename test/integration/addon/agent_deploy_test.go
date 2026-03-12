@@ -91,8 +91,6 @@ var _ = ginkgo.Describe("Agent deploy", func() {
 		_, err = hubAddonClient.AddonV1alpha1().ClusterManagementAddOns().Create(context.Background(),
 			cma, metav1.CreateOptions{})
 		gomega.Expect(err).ToNot(gomega.HaveOccurred())
-
-		assertClusterManagementAddOnAnnotations(testAddonImpl.name)
 	})
 
 	ginkgo.AfterEach(func() {

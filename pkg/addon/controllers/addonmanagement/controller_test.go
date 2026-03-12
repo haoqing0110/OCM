@@ -12,7 +12,6 @@ import (
 	"k8s.io/klog/v2/ktesting"
 
 	"open-cluster-management.io/addon-framework/pkg/addonmanager/addontesting"
-	"open-cluster-management.io/addon-framework/pkg/utils"
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	fakeaddon "open-cluster-management.io/api/client/addon/clientset/versioned/fake"
 	addoninformers "open-cluster-management.io/api/client/addon/informers/externalversions"
@@ -261,7 +260,6 @@ func TestAddonInstallReconcile(t *testing.T) {
 				placementLister:            clusterInformers.Cluster().V1beta1().Placements().Lister(),
 				placementDecisionLister:    clusterInformers.Cluster().V1beta1().PlacementDecisions().Lister(),
 				managedClusterAddonIndexer: addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetIndexer(),
-				addonFilterFunc:            utils.ManagedByAddonManager,
 			}
 
 			_, _, err = reconcile.reconcile(context.TODO(), c.clusterManagementAddon)
@@ -292,17 +290,12 @@ func TestNewAddonManagementController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addonFilterFunc := func(obj interface{}) bool {
-		return true
-	}
-
 	controller := NewAddonManagementController(
 		fakeAddonClient,
 		addonInformers.Addon().V1alpha1().ManagedClusterAddOns(),
 		addonInformers.Addon().V1alpha1().ClusterManagementAddOns(),
 		clusterInformers.Cluster().V1beta1().Placements(),
 		clusterInformers.Cluster().V1beta1().PlacementDecisions(),
-		addonFilterFunc,
 	)
 
 	if controller == nil {
@@ -443,10 +436,6 @@ func TestAddonManagementControllerSync(t *testing.T) {
 			}
 
 			// Create controller
-			addonFilterFunc := func(obj interface{}) bool {
-				return true
-			}
-
 			controller := &addonManagementController{
 				addonClient:                   fakeAddonClient,
 				clusterManagementAddonLister:  addonInformers.Addon().V1alpha1().ClusterManagementAddOns().Lister(),
@@ -457,7 +446,6 @@ func TestAddonManagementControllerSync(t *testing.T) {
 						placementDecisionLister:    clusterInformers.Cluster().V1beta1().PlacementDecisions().Lister(),
 						placementLister:            clusterInformers.Cluster().V1beta1().Placements().Lister(),
 						managedClusterAddonIndexer: addonInformers.Addon().V1alpha1().ManagedClusterAddOns().Informer().GetIndexer(),
-						addonFilterFunc:            addonFilterFunc,
 					},
 				},
 			}
