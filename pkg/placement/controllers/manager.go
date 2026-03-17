@@ -2,12 +2,10 @@ package hub
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
-	"k8s.io/apiserver/pkg/server/mux"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -19,7 +17,6 @@ import (
 
 	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
 	"open-cluster-management.io/ocm/pkg/placement/controllers/scheduling"
-	"open-cluster-management.io/ocm/pkg/placement/debugger"
 )
 
 // RunControllerManager starts the controllers on hub to make placement decisions.
@@ -70,16 +67,6 @@ func RunControllerManagerWithInformers(
 			recorder, metrics),
 	)
 
-	if controllerContext.Server != nil {
-		debug := debugger.NewDebugger(
-			scheduler,
-			clusterInformers.Cluster().V1beta1().Placements(),
-			clusterInformers.Cluster().V1().ManagedClusters(),
-		)
-
-		installDebugger(controllerContext.Server.Handler.NonGoRestfulMux, debug)
-	}
-
 	schedulingController := scheduling.NewSchedulingController(
 		ctx,
 		clusterClient,
@@ -100,8 +87,4 @@ func RunControllerManagerWithInformers(
 	<-ctx.Done()
 
 	return nil
-}
-
-func installDebugger(mux *mux.PathRecorderMux, d *debugger.Debugger) {
-	mux.HandlePrefix(debugger.DebugPath, http.HandlerFunc(d.Handler))
 }
