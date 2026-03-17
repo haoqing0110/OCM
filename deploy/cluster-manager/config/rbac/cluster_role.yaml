@@ -18,7 +18,7 @@ rules:
   verbs: ["subscribe"]
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["get"]
+  verbs: ["get", "list", "update"]
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "list", "watch", "update", "patch", "delete"]

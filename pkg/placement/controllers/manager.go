@@ -20,6 +20,7 @@ import (
 	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
 	"open-cluster-management.io/ocm/pkg/placement/controllers/scheduling"
 	"open-cluster-management.io/ocm/pkg/placement/debugger"
+	"open-cluster-management.io/ocm/pkg/placement/leaderutil"
 )
 
 // RunControllerManager starts the controllers on hub to make placement decisions.
@@ -54,6 +55,24 @@ func RunControllerManagerWithInformers(
 	clusterClient clusterclient.Interface,
 	clusterInformers clusterinformers.SharedInformerFactory,
 ) error {
+	// Create leader label manager to mark this pod as leader
+	leaderLabelMgr := leaderutil.NewLeaderLabelManager(kubeClient)
+
+	// Mark this pod as leader when controllers start
+	// This happens after winning the leader election
+	if err := leaderLabelMgr.MarkAsLeader(ctx); err != nil {
+		klog.Errorf("Failed to mark pod as leader: %v", err)
+		// Don't fail the controller startup if label update fails
+	}
+
+	// Ensure we remove the leader label when context is done
+	defer func() {
+		// Use background context as the original context is already cancelled
+		if err := leaderLabelMgr.UnmarkAsLeader(context.Background()); err != nil {
+			klog.Errorf("Failed to unmark pod as leader: %v", err)
+		}
+	}()
+
 	recorder, err := events.NewEventRecorder(ctx, clusterscheme.Scheme, kubeClient.EventsV1(), "placement-controller")
 	if err != nil {
 		return err
