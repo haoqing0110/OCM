@@ -1,0 +1,17 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .ClusterManagerName }}-placement
+  namespace: {{ .ClusterManagerNamespace }}
+  labels:
+    app: {{ .ClusterManagerName }}-placement-controller
+spec:
+  selector:
+    app: clustermanager-placement-controller
+    cluster.open-cluster-management.io/leader: "true"  # Only route to leader pod
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  type: ClusterIP
