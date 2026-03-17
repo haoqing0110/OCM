@@ -2,12 +2,10 @@ package hub
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"time"
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
-	"k8s.io/apiserver/pkg/server/mux"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
@@ -19,11 +17,20 @@ import (
 
 	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
 	"open-cluster-management.io/ocm/pkg/placement/controllers/scheduling"
-	"open-cluster-management.io/ocm/pkg/placement/debugger"
 )
 
 // RunControllerManager starts the controllers on hub to make placement decisions.
 func RunControllerManager(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
+	return RunControllerManagerWithSharedInformers(ctx, controllerContext, nil)
+}
+
+// RunControllerManagerWithSharedInformers starts the controllers with optional shared informers
+// If sharedInformers is nil, it will create new informers
+func RunControllerManagerWithSharedInformers(
+	ctx context.Context,
+	controllerContext *controllercmd.ControllerContext,
+	sharedInformers clusterinformers.SharedInformerFactory,
+) error {
 	// setting up contextual logger
 	logger := klog.NewKlogr()
 	podName := os.Getenv("POD_NAME")
@@ -42,7 +49,15 @@ func RunControllerManager(ctx context.Context, controllerContext *controllercmd.
 		return err
 	}
 
-	clusterInformers := clusterinformers.NewSharedInformerFactory(clusterClient, 10*time.Minute)
+	// Use shared informers if provided, otherwise create new ones
+	clusterInformers := sharedInformers
+	if clusterInformers == nil {
+		// Fallback: create new informers if not shared (e.g., debugger disabled)
+		klog.Info("Shared informers not available, creating new informers")
+		clusterInformers = clusterinformers.NewSharedInformerFactory(clusterClient, 10*time.Minute)
+	} else {
+		klog.Info("Reusing shared informers from debugger service")
+	}
 
 	return RunControllerManagerWithInformers(ctx, controllerContext, kubeClient, clusterClient, clusterInformers)
 }
@@ -70,16 +85,6 @@ func RunControllerManagerWithInformers(
 			recorder, metrics),
 	)
 
-	if controllerContext.Server != nil {
-		debug := debugger.NewDebugger(
-			scheduler,
-			clusterInformers.Cluster().V1beta1().Placements(),
-			clusterInformers.Cluster().V1().ManagedClusters(),
-		)
-
-		installDebugger(controllerContext.Server.Handler.NonGoRestfulMux, debug)
-	}
-
 	schedulingController := scheduling.NewSchedulingController(
 		ctx,
 		clusterClient,
@@ -100,8 +105,4 @@ func RunControllerManagerWithInformers(
 	<-ctx.Done()
 
 	return nil
-}
-
-func installDebugger(mux *mux.PathRecorderMux, d *debugger.Debugger) {
-	mux.HandlePrefix(debugger.DebugPath, http.HandlerFunc(d.Handler))
 }
