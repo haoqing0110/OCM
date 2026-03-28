@@ -56,6 +56,14 @@ type Prioritizer interface {
 	Score(ctx context.Context, placement *clusterapiv1beta1.Placement, clusters []*clusterapiv1.ManagedCluster) (PluginScoreResult, *framework.Status)
 }
 
+// Selector defines a selector plugin that selects clusters after scoring them.
+type Selector interface {
+	Plugin
+
+	// Select returns the selected clusters.
+	Select(ctx context.Context, placement *clusterapiv1beta1.Placement, scores map[string]int64, clusters []*clusterapiv1.ManagedCluster) (PluginSelectResult, *framework.Status)
+}
+
 // Handle provides data and some tools that plugins can use. It is
 // passed to the plugin factories at the time of plugin initialization.
 type Handle interface {
@@ -88,6 +96,12 @@ type PluginFilterResult struct {
 type PluginScoreResult struct {
 	// Scores contains the ManagedCluster scores.
 	Scores map[string]int64
+}
+
+// PluginSelectResult contains the details of a select plugin result.
+type PluginSelectResult struct {
+	// Selected contains the selected ManagedCluster.
+	Selected []*clusterapiv1.ManagedCluster
 }
 
 // PluginRequeueResult contains the requeue result of a placement.
