@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 
 	addonv1alpha1 "open-cluster-management.io/api/addon/v1alpha1"
 	clusterlisterv1beta1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
@@ -69,6 +70,18 @@ func (n *addonNode) setRolloutStatus() {
 	}
 
 	for _, actual := range n.mca.Status.ConfigReferences {
+		// skip config references without desired config
+		if actual.DesiredConfig == nil {
+			klog.Warningf("ManagedClusterAddon %s/%s has configReference without desiredConfig, "+
+				"marking as ToApply to trigger configuration initialization",
+				n.mca.Namespace, n.mca.Name)
+			n.status = &clustersdkv1alpha1.ClusterRolloutStatus{
+				ClusterName: n.mca.Namespace,
+				Status:      clustersdkv1alpha1.ToApply,
+			}
+			return
+		}
+
 		if index, exist := n.desiredConfigs.containsConfig(actual.ConfigGroupResource, actual.DesiredConfig.ConfigReferent); exist {
 			// desired config spec hash doesn't match actual, set to ToApply
 			if !equality.Semantic.DeepEqual(n.desiredConfigs[actual.ConfigGroupResource][index].DesiredConfig, actual.DesiredConfig) {
