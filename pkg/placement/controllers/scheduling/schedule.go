@@ -3,35 +3,33 @@ package scheduling
 import (
 	"context"
 	"fmt"
+	"open-cluster-management.io/placement/pkg/plugins/spread"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	kevents "k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
-
 	clusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterlisterv1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1"
 	clusterlisterv1alpha1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1alpha1"
 	clusterlisterv1beta1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-
-	"open-cluster-management.io/ocm/pkg/placement/controllers/framework"
-	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
-	"open-cluster-management.io/ocm/pkg/placement/plugins"
-	"open-cluster-management.io/ocm/pkg/placement/plugins/addon"
-	"open-cluster-management.io/ocm/pkg/placement/plugins/balance"
-	"open-cluster-management.io/ocm/pkg/placement/plugins/predicate"
-	"open-cluster-management.io/ocm/pkg/placement/plugins/resource"
-	"open-cluster-management.io/ocm/pkg/placement/plugins/steady"
-	"open-cluster-management.io/ocm/pkg/placement/plugins/tainttoleration"
+	"open-cluster-management.io/placement/pkg/controllers/framework"
+	"open-cluster-management.io/placement/pkg/plugins"
+	"open-cluster-management.io/placement/pkg/plugins/addon"
+	"open-cluster-management.io/placement/pkg/plugins/balance"
+	"open-cluster-management.io/placement/pkg/plugins/predicate"
+	"open-cluster-management.io/placement/pkg/plugins/resource"
+	"open-cluster-management.io/placement/pkg/plugins/steady"
+	"open-cluster-management.io/placement/pkg/plugins/tainttoleration"
 )
 
 const (
 	PrioritizerBalance                   string = "Balance"
 	PrioritizerSteady                    string = "Steady"
+	PrioritizerSpread                    string = "Spread"
 	PrioritizerResourceAllocatableCPU    string = "ResourceAllocatableCPU"
 	PrioritizerResourceAllocatableMemory string = "ResourceAllocatableMemory"
 )
@@ -58,8 +56,8 @@ type ScheduleResult interface {
 	// PrioritizerScores returns total score for each cluster
 	PrioritizerScores() PrioritizerScore
 
-	// Decisions returns the decision groups of the schedule
-	Decisions() []*clusterapiv1.ManagedCluster
+	// Decisions returns the decisions of the schedule
+	Decisions() []clusterapiv1beta1.ClusterDecision
 
 	// NumOfUnscheduled returns the number of unscheduled.
 	NumOfUnscheduled() int
@@ -84,7 +82,7 @@ type PrioritizerResult struct {
 // ScheduleResult is the result for a certain schedule.
 type scheduleResult struct {
 	feasibleClusters     []*clusterapiv1.ManagedCluster
-	scheduledDecisions   []*clusterapiv1.ManagedCluster
+	scheduledDecisions   []clusterapiv1beta1.ClusterDecision
 	unscheduledDecisions int
 
 	filteredRecords map[string][]*clusterapiv1.ManagedCluster
@@ -94,8 +92,7 @@ type scheduleResult struct {
 }
 
 type schedulerHandler struct {
-	eventsRecorder          kevents.EventRecorder
-	metricsRecorder         *metrics.ScheduleMetrics
+	recorder                kevents.EventRecorder
 	placementDecisionLister clusterlisterv1beta1.PlacementDecisionLister
 	scoreLister             clusterlisterv1alpha1.AddOnPlacementScoreLister
 	clusterLister           clusterlisterv1.ManagedClusterLister
@@ -103,17 +100,10 @@ type schedulerHandler struct {
 }
 
 func NewSchedulerHandler(
-	clusterClient clusterclient.Interface,
-	placementDecisionLister clusterlisterv1beta1.PlacementDecisionLister,
-	scoreLister clusterlisterv1alpha1.AddOnPlacementScoreLister,
-	clusterLister clusterlisterv1.ManagedClusterLister,
-	eventsRecorder kevents.EventRecorder,
-	metricsRecorder *metrics.ScheduleMetrics,
-) plugins.Handle {
+	clusterClient clusterclient.Interface, placementDecisionLister clusterlisterv1beta1.PlacementDecisionLister, scoreLister clusterlisterv1alpha1.AddOnPlacementScoreLister, clusterLister clusterlisterv1.ManagedClusterLister, recorder kevents.EventRecorder) plugins.Handle {
 
 	return &schedulerHandler{
-		eventsRecorder:          eventsRecorder,
-		metricsRecorder:         metricsRecorder,
+		recorder:                recorder,
 		placementDecisionLister: placementDecisionLister,
 		scoreLister:             scoreLister,
 		clusterLister:           clusterLister,
@@ -122,7 +112,7 @@ func NewSchedulerHandler(
 }
 
 func (s *schedulerHandler) EventRecorder() kevents.EventRecorder {
-	return s.eventsRecorder
+	return s.recorder
 }
 
 func (s *schedulerHandler) DecisionLister() clusterlisterv1beta1.PlacementDecisionLister {
@@ -139,10 +129,6 @@ func (s *schedulerHandler) ClusterLister() clusterlisterv1.ManagedClusterLister 
 
 func (s *schedulerHandler) ClusterClient() clusterclient.Interface {
 	return s.clusterClient
-}
-
-func (s *schedulerHandler) MetricsRecorder() *metrics.ScheduleMetrics {
-	return s.metricsRecorder
 }
 
 // Initialize the default prioritizer weight.
@@ -181,7 +167,6 @@ func (s *pluginScheduler) Schedule(
 	placement *clusterapiv1beta1.Placement,
 	clusters []*clusterapiv1.ManagedCluster,
 ) (ScheduleResult, *framework.Status) {
-	logger := klog.FromContext(ctx)
 	filtered := clusters
 	finalStatus := framework.NewStatus("", framework.Success, "")
 
@@ -191,25 +176,17 @@ func (s *pluginScheduler) Schedule(
 	}
 
 	// filter clusters
-	var filterPipline []string
+	filterPipline := []string{}
 
 	for _, f := range s.filters {
-		startTime := time.Now()
 		filterResult, status := f.Filter(ctx, placement, filtered)
-
-		metrics.PluginDuration.With(prometheus.Labels{
-			"name":        metrics.SchedulingName,
-			"plugin_type": "filter",
-			"plugin_name": f.Name(),
-		}).Observe(s.handle.MetricsRecorder().SinceInSeconds(startTime))
-
 		filtered = filterResult.Filtered
 
 		switch {
 		case status.IsError():
 			return results, status
 		case status.Code() == framework.Warning:
-			logger.Info("Warning status message", "message", status.Message())
+			klog.Warningf("%v", status.Message())
 			finalStatus = status
 		}
 
@@ -226,7 +203,7 @@ func (s *pluginScheduler) Schedule(
 	case status.IsError():
 		return results, status
 	case status.Code() == framework.Warning:
-		logger.Info("Warning status message", "message", status.Message())
+		klog.Warningf("%v", status.Message())
 		finalStatus = status
 	}
 
@@ -236,7 +213,7 @@ func (s *pluginScheduler) Schedule(
 	case status.IsError():
 		return results, status
 	case status.Code() == framework.Warning:
-		logger.Info("Warning status message", "message", status.Message())
+		klog.Warningf("%v", status.Message())
 		finalStatus = status
 	}
 
@@ -247,22 +224,14 @@ func (s *pluginScheduler) Schedule(
 	}
 	for sc, p := range prioritizers {
 		// Get cluster score.
-		startTime := time.Now()
 		scoreResult, status := p.Score(ctx, placement, filtered)
-
-		metrics.PluginDuration.With(prometheus.Labels{
-			"name":        metrics.SchedulingName,
-			"plugin_type": "prioritizer",
-			"plugin_name": p.Name(),
-		}).Observe(s.handle.MetricsRecorder().SinceInSeconds(startTime))
-
 		score := scoreResult.Scores
 
 		switch {
 		case status.IsError():
 			return results, status
 		case status.Code() == framework.Warning:
-			logger.Info("Warning status message", "message", status.Message())
+			klog.Warningf("%v", status.Message())
 			finalStatus = status
 		}
 
@@ -272,33 +241,52 @@ func (s *pluginScheduler) Schedule(
 
 		// The final score is a sum of each prioritizer score * weight.
 		// A higher weight indicates that the prioritizer weights more in the cluster selection,
-		// while 0 weight indicate that the prioritizer is disabled.
+		// while 0 weight indicate thats the prioritizer is disabled.
 		for name, val := range score {
-			scoreSum[name] += val * int64(weight)
+			scoreSum[name] = scoreSum[name] + val*int64(weight)
 		}
 
 	}
 
-	// 4. Sort clusters by score, if score is equal, sort by name
-	sort.SliceStable(filtered, func(i, j int) bool {
-		if scoreSum[filtered[i].Name] == scoreSum[filtered[j].Name] {
-			return filtered[i].Name < filtered[j].Name
-		} else {
-			return scoreSum[filtered[i].Name] > scoreSum[filtered[j].Name]
-		}
-	})
-
-	results.feasibleClusters = filtered
-	results.scoreSum = scoreSum
-
-	// select clusters and generate cluster decisions
-	decisions := selectClusters(placement, filtered)
-	scheduled, unscheduled := len(decisions), 0
-	if placement.Spec.NumberOfClusters != nil {
-		unscheduled = int(*placement.Spec.NumberOfClusters) - scheduled
+	// temporary workaround for the spread plugin
+	spreadCoordinate := clusterapiv1beta1.ScoreCoordinate{
+		Type:    clusterapiv1beta1.ScoreCoordinateTypeBuiltIn,
+		BuiltIn: PrioritizerSpread,
 	}
-	results.scheduledDecisions = decisions
-	results.unscheduledDecisions = unscheduled
+	if weights[spreadCoordinate] != 0 {
+		s := spread.New(weights[spreadCoordinate])
+		result, status := s.Select(ctx, placement, scoreSum, filtered)
+		switch {
+		case status.IsError():
+			return results, status
+		case status.Code() == framework.Warning:
+			klog.Warningf("%v", status.Message())
+			finalStatus = status
+		}
+		results.scheduledDecisions = selectClusters(placement, result.Selected)
+		results.unscheduledDecisions = 0
+	} else {
+		// 4. Sort clusters by score, if score is equal, sort by name
+		sort.SliceStable(filtered, func(i, j int) bool {
+			if scoreSum[filtered[i].Name] == scoreSum[filtered[j].Name] {
+				return filtered[i].Name < filtered[j].Name
+			} else {
+				return scoreSum[filtered[i].Name] > scoreSum[filtered[j].Name]
+			}
+		})
+
+		results.feasibleClusters = filtered
+		results.scoreSum = scoreSum
+
+		// select clusters and generate cluster decisions
+		decisions := selectClusters(placement, filtered)
+		scheduled, unscheduled := len(decisions), 0
+		if placement.Spec.NumberOfClusters != nil {
+			unscheduled = int(*placement.Spec.NumberOfClusters) - scheduled
+		}
+		results.scheduledDecisions = decisions
+		results.unscheduledDecisions = unscheduled
+	}
 
 	// set placement requeue time
 	for _, f := range s.filters {
@@ -317,8 +305,9 @@ func (s *pluginScheduler) Schedule(
 	return results, finalStatus
 }
 
-// selects clusters based on given cluster slice and number of clusters
-func selectClusters(placement *clusterapiv1beta1.Placement, clusters []*clusterapiv1.ManagedCluster) []*clusterapiv1.ManagedCluster {
+// makeClusterDecisions selects clusters based on given cluster slice and then creates
+// cluster decisions.
+func selectClusters(placement *clusterapiv1beta1.Placement, clusters []*clusterapiv1.ManagedCluster) []clusterapiv1beta1.ClusterDecision {
 	numOfDecisions := len(clusters)
 	if placement.Spec.NumberOfClusters != nil {
 		numOfDecisions = int(*placement.Spec.NumberOfClusters)
@@ -330,7 +319,13 @@ func selectClusters(placement *clusterapiv1beta1.Placement, clusters []*clustera
 		clusters = clusters[:numOfDecisions]
 	}
 
-	return clusters
+	decisions := []clusterapiv1beta1.ClusterDecision{}
+	for _, cluster := range clusters {
+		decisions = append(decisions, clusterapiv1beta1.ClusterDecision{
+			ClusterName: cluster.Name,
+		})
+	}
+	return decisions
 }
 
 // setRequeueAfter selects minimal time.Duration as requeue time
@@ -349,8 +344,7 @@ func setRequeueAfter(requeueAfter, newRequeueAfter *time.Duration) *time.Duratio
 // Get prioritizer weight for the placement.
 // In Additive and "" mode, will override defaultWeight with what placement has defined and return.
 // In Exact mode, will return the name and weight defined in placement.
-func getWeights(defaultWeight map[clusterapiv1beta1.ScoreCoordinate]int32,
-	placement *clusterapiv1beta1.Placement) (map[clusterapiv1beta1.ScoreCoordinate]int32, *framework.Status) {
+func getWeights(defaultWeight map[clusterapiv1beta1.ScoreCoordinate]int32, placement *clusterapiv1beta1.Placement) (map[clusterapiv1beta1.ScoreCoordinate]int32, *framework.Status) {
 	mode := placement.Spec.PrioritizerPolicy.Mode
 	switch {
 	case mode == clusterapiv1beta1.PrioritizerPolicyModeExact:
@@ -363,9 +357,7 @@ func getWeights(defaultWeight map[clusterapiv1beta1.ScoreCoordinate]int32,
 	}
 }
 
-func mergeWeights(defaultWeight map[clusterapiv1beta1.ScoreCoordinate]int32,
-	customizedWeight []clusterapiv1beta1.PrioritizerConfig,
-) (map[clusterapiv1beta1.ScoreCoordinate]int32, *framework.Status) {
+func mergeWeights(defaultWeight map[clusterapiv1beta1.ScoreCoordinate]int32, customizedWeight []clusterapiv1beta1.PrioritizerConfig) (map[clusterapiv1beta1.ScoreCoordinate]int32, *framework.Status) {
 	weights := make(map[clusterapiv1beta1.ScoreCoordinate]int32)
 	status := framework.NewStatus("", framework.Success, "")
 	// copy the default weight
@@ -385,8 +377,7 @@ func mergeWeights(defaultWeight map[clusterapiv1beta1.ScoreCoordinate]int32,
 }
 
 // Generate prioritizers for the placement.
-func getPrioritizers(weights map[clusterapiv1beta1.ScoreCoordinate]int32, handle plugins.Handle,
-) (map[clusterapiv1beta1.ScoreCoordinate]plugins.Prioritizer, *framework.Status) {
+func getPrioritizers(weights map[clusterapiv1beta1.ScoreCoordinate]int32, handle plugins.Handle) (map[clusterapiv1beta1.ScoreCoordinate]plugins.Prioritizer, *framework.Status) {
 	result := make(map[clusterapiv1beta1.ScoreCoordinate]plugins.Prioritizer)
 	status := framework.NewStatus("", framework.Success, "")
 	for k, v := range weights {
@@ -401,6 +392,8 @@ func getPrioritizers(weights map[clusterapiv1beta1.ScoreCoordinate]int32, handle
 				result[k] = steady.New(handle)
 			case k.BuiltIn == PrioritizerResourceAllocatableCPU || k.BuiltIn == PrioritizerResourceAllocatableMemory:
 				result[k] = resource.NewResourcePrioritizerBuilder(handle).WithPrioritizerName(k.BuiltIn).Build()
+			case k.BuiltIn == PrioritizerSpread:
+				//
 			default:
 				msg := fmt.Sprintf("incorrect builtin prioritizer: %s", k.BuiltIn)
 				return nil, framework.NewStatus("", framework.Misconfigured, msg)
@@ -416,10 +409,10 @@ func getPrioritizers(weights map[clusterapiv1beta1.ScoreCoordinate]int32, handle
 }
 
 func (r *scheduleResult) FilterResults() []FilterResult {
-	var results []FilterResult
+	results := []FilterResult{}
 
 	// order the FilterResults by key length
-	var filteredRecordsKey []string
+	filteredRecordsKey := []string{}
 	for name := range r.filteredRecords {
 		filteredRecordsKey = append(filteredRecordsKey, name)
 	}
@@ -447,7 +440,7 @@ func (r *scheduleResult) PrioritizerScores() PrioritizerScore {
 	return r.scoreSum
 }
 
-func (r *scheduleResult) Decisions() []*clusterapiv1.ManagedCluster {
+func (r *scheduleResult) Decisions() []clusterapiv1beta1.ClusterDecision {
 	return r.scheduledDecisions
 }
 

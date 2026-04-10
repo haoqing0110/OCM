@@ -6,16 +6,13 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/events"
-
 	clusterclient "open-cluster-management.io/api/client/cluster/clientset/versioned"
 	clusterlisterv1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1"
 	clusterlisterv1alpha1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1alpha1"
 	clusterlisterv1beta1 "open-cluster-management.io/api/client/cluster/listers/cluster/v1beta1"
 	clusterapiv1 "open-cluster-management.io/api/cluster/v1"
 	clusterapiv1beta1 "open-cluster-management.io/api/cluster/v1beta1"
-
-	"open-cluster-management.io/ocm/pkg/placement/controllers/framework"
-	"open-cluster-management.io/ocm/pkg/placement/controllers/metrics"
+	"open-cluster-management.io/placement/pkg/controllers/framework"
 )
 
 const (
@@ -32,13 +29,13 @@ const (
 // Plugin is the parent type for all the scheduling plugins.
 type Plugin interface {
 	Name() string
-	// Description of the plugin
+	// Set is to set the placement for the current scheduling.
 	Description() string
 	// RequeueAfter returns the requeue time interval of the placement
 	RequeueAfter(ctx context.Context, placement *clusterapiv1beta1.Placement) (PluginRequeueResult, *framework.Status)
 }
 
-// Filter defines a filter plugin that filter unsatisfied cluster.
+// Fitler defines a filter plugin that filter unsatisfied cluster.
 type Filter interface {
 	Plugin
 
@@ -47,13 +44,21 @@ type Filter interface {
 }
 
 // Prioritizer defines a prioritizer plugin that score each cluster. The score is normalized
-// as a floating between 0 and 1.
+// as a floating betwween 0 and 1.
 type Prioritizer interface {
 	Plugin
 
 	// Score gives the score to a list of the clusters, it returns a map with the key as
 	// the cluster name.
 	Score(ctx context.Context, placement *clusterapiv1beta1.Placement, clusters []*clusterapiv1.ManagedCluster) (PluginScoreResult, *framework.Status)
+}
+
+// Selector defines a selector plugin that selects clusters after scoring them.
+type Selector interface {
+	Plugin
+
+	// Select returns the selected clusters.
+	Select(ctx context.Context, placement *clusterapiv1beta1.Placement, scores map[string]int64, clusters []*clusterapiv1.ManagedCluster) (PluginSelectResult, *framework.Status)
 }
 
 // Handle provides data and some tools that plugins can use. It is
@@ -73,9 +78,6 @@ type Handle interface {
 
 	// EventRecorder returns an event recorder.
 	EventRecorder() events.EventRecorder
-
-	// MetricsRecorder record the metrics for plugins
-	MetricsRecorder() *metrics.ScheduleMetrics
 }
 
 // PluginFilterResult contains the details of a filter plugin result.
@@ -88,6 +90,12 @@ type PluginFilterResult struct {
 type PluginScoreResult struct {
 	// Scores contains the ManagedCluster scores.
 	Scores map[string]int64
+}
+
+// PluginSelectResult contains the details of a select plugin result.
+type PluginSelectResult struct {
+	// Selected contains the selected ManagedCluster.
+	Selected []*clusterapiv1.ManagedCluster
 }
 
 // PluginRequeueResult contains the requeue result of a placement.
